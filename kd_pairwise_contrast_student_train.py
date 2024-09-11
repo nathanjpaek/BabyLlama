@@ -10,6 +10,7 @@ from transformers import (
 )
 from pathlib import Path
 import wandb
+import torch.nn as nn
 
 from babylm_dataset import BabylmDataset
 
