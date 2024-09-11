@@ -45,11 +45,10 @@ tokenizer.bos_token = "<s>"
 tokenizer.eos_token = "</s>"
 tokenizer.pad_token = "<pad>"
 
+# Using a smaller dataset for faster hyperparameter tuning
 train_dataset = BabylmDataset(PATH / "data/babylm_10M_clean", SEQ_LENGTH, tokenizer=tokenizer, random_chunk=True)
-full_eval_dataset = BabylmDataset(PATH / "data/babylm_dev_clean", SEQ_LENGTH, tokenizer=tokenizer, offset=0)
-
-eval_indices = sample(range(len(full_eval_dataset)), EVAL_SAMPLES)
-eval_dataset = Subset(full_eval_dataset, eval_indices)
+# Use a smaller subset for hyperparameter tuning
+eval_dataset = Subset(train_dataset, sample(range(len(train_dataset)), 1024))
 
 tokenizer.model_max_length = SEQ_LENGTH
 
@@ -131,18 +130,18 @@ class DistillationTrainer(Trainer):
 
         return (total_loss, outputs_student) if return_outputs else total_loss
 
-# Optuna objective function
+# Optuna objective function with pruning and limited search space
 def objective(trial):
-    # Suggest contrastive weight value from Optuna
-    contrastive_weight = trial.suggest_float('contrastive_weight', 0.0, 1.0)
+    # Suggest contrastive weight value from a reduced range (0.1 to 0.5)
+    contrastive_weight = trial.suggest_float('contrastive_weight', 0.1, 0.5)
 
-    # Define the training arguments with the suggested contrastive weight
+    # Define the training arguments with fewer epochs for faster tuning
     training_args = DistillationTrainingArguments(
         output_dir=MODEL_OUTPUT,
         overwrite_output_dir=True,
         save_strategy="epoch",
         evaluation_strategy="epoch",
-        num_train_epochs=6,
+        num_train_epochs=2,  # Fewer epochs for hyperparameter tuning
         gradient_accumulation_steps=1,
         per_device_train_batch_size=BATCH_SIZE,
         save_total_limit=1,  
@@ -160,7 +159,7 @@ def objective(trial):
         contrastive_weight=contrastive_weight,  # Tune this using Optuna
     )
 
-    # Initialize the trainer
+    # Initialize the trainer with early stopping
     trainer = DistillationTrainer(
         student,
         training_args,
@@ -170,6 +169,9 @@ def objective(trial):
         eval_dataset=eval_dataset,
     )
 
+    # Enable Optuna's pruning feature (early stopping)
+    trainer.add_callback(optuna.integration.PyTorchLightningPruningCallback(trial, monitor="eval_loss"))
+
     # Train the model
     trainer.train()
 
@@ -177,12 +179,48 @@ def objective(trial):
     eval_metrics = trainer.evaluate()
     return eval_metrics["eval_loss"]
 
-# Initialize Optuna and start tuning
+# Initialize Optuna and start tuning with early stopping and limited trials
 study = optuna.create_study(direction="minimize")
-study.optimize(objective, n_trials=10)  # You can adjust the number of trials as needed
+study.optimize(objective, n_trials=5)  # Limit to 5 trials
 
 # Get the best trial (best contrastive_weight)
 best_trial = study.best_trial
 print(f"Best trial: contrastive_weight={best_trial.params['contrastive_weight']}, eval_loss={best_trial.value}")
 
-# At this point, the model has been tuned, and you can save the best model as needed.
+# Rerun the training for longer duration using full dataset with the best contrastive_weight
+full_eval_dataset = BabylmDataset(PATH / "data/babylm_dev_clean", SEQ_LENGTH, tokenizer=tokenizer, offset=0)
+
+training_args_full = DistillationTrainingArguments(
+    output_dir=MODEL_OUTPUT,
+    overwrite_output_dir=True,
+    save_strategy="epoch",
+    evaluation_strategy="epoch",
+    num_train_epochs=6,  # Longer training after finding the best hyperparameter
+    gradient_accumulation_steps=1,
+    per_device_train_batch_size=BATCH_SIZE,
+    save_total_limit=1,
+    report_to="wandb",
+    warmup_steps=200,
+    lr_scheduler_type="cosine",
+    learning_rate=LR,
+    logging_steps=20,
+    fp16=True,
+    load_best_model_at_end=True,
+    metric_for_best_model="eval_loss",
+    weight_decay=0.1,
+    alpha=ALPHA,
+    temperature=TEMPERATURE,
+    contrastive_weight=best_trial.params['contrastive_weight'],  # Best contrastive weight
+)
+
+# Train again using the full dataset
+trainer_full = DistillationTrainer(
+    student,
+    training_args_full,
+    teacher_models=teachers,
+    data_collator=data_collator,
+    train_dataset=train_dataset,
+    eval_dataset=full_eval_dataset,
+)
+
+trainer_full.train()
