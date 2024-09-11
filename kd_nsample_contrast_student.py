@@ -76,11 +76,15 @@ print(f'model num parameters: student = {student.num_parameters()}')
 print(f'model num parameters: teacher1 = {teacher1.num_parameters()}')
 print(f'model num parameters: teacher2 = {teacher2.num_parameters()}')
 
-# N-sample contrastive loss function
+# Updated n-sample contrastive loss function to handle sequence data
 def n_sample_contrastive_loss(student_logits, teacher_logits, temperature):
+    # Average over the sequence dimension (dimension 1)
+    student_mean = student_logits.mean(dim=1)
+    teacher_mean = teacher_logits.mean(dim=1)
+    
     # Normalize logits to unit norm
-    student_normed = F.normalize(student_logits, dim=-1)
-    teacher_normed = F.normalize(teacher_logits, dim=-1)
+    student_normed = F.normalize(student_mean, dim=-1)
+    teacher_normed = F.normalize(teacher_mean, dim=-1)
     
     # Compute similarity matrix
     similarity_matrix = torch.matmul(student_normed, teacher_normed.T)
@@ -89,11 +93,12 @@ def n_sample_contrastive_loss(student_logits, teacher_logits, temperature):
     similarity_matrix /= temperature
     
     # Calculate contrastive loss using cross-entropy
-    batch_size = student_logits.size(0)
+    batch_size = student_mean.size(0)
     labels = torch.arange(batch_size, device=student_logits.device)
     contrastive_loss = F.cross_entropy(similarity_matrix, labels)
     
     return contrastive_loss
+
 
 # Custom TrainingArguments class to include contrastive weight
 class DistillationTrainingArguments(TrainingArguments):
