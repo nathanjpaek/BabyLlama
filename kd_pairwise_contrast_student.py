@@ -8,6 +8,7 @@ from transformers import (
     TrainingArguments,
     DataCollatorForLanguageModeling,
 )
+from transformers import TrainerCallback
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -131,8 +132,9 @@ class DistillationTrainer(Trainer):
         return (total_loss, outputs_student) if return_outputs else total_loss
 
 # Custom pruning callback based on eval_loss
-class HuggingFacePruningCallback:
+class HuggingFacePruningCallback(TrainerCallback):
     def __init__(self, trial, metric_name):
+        super().__init__()
         self.trial = trial
         self.metric_name = metric_name
 
@@ -142,9 +144,11 @@ class HuggingFacePruningCallback:
         current_score = metrics.get(self.metric_name)
         if current_score is None:
             return
+        # Report the metric score to Optuna
         self.trial.report(current_score, step=state.global_step)
+        # Check if trial should be pruned
         if self.trial.should_prune():
-            raise optuna.TrialPruned()
+            raise optuna.exceptions.TrialPruned()
 
 # Optuna objective function with pruning and limited search space
 def objective(trial):
