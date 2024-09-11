@@ -169,8 +169,9 @@ def objective(trial):
         eval_dataset=eval_dataset,
     )
 
-    # Enable Optuna's pruning feature (early stopping)
-    trainer.add_callback(optuna.integration.PyTorchLightningPruningCallback(trial, monitor="eval_loss"))
+    # Enable Optuna's TransformersPruningCallback (correct callback for HuggingFace Trainer)
+    pruning_callback = optuna.integration.TransformersPruningCallback(trial, "eval_loss")
+    trainer.add_callback(pruning_callback)
 
     # Train the model
     trainer.train()

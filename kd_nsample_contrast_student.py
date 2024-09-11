@@ -26,6 +26,7 @@ SEQ_LENGTH = 128
 
 TEMPERATURE = 2.0
 ALPHA = 0.5
+N_SAMPLES = 5  # Number of negative samples for contrastive learning
 #############
 
 PATH = Path("./")
@@ -33,7 +34,7 @@ PATH = Path("./")
 teacher_dir1 = PATH / './models/Llama-360M'
 teacher_dir2 = PATH / './models/GPT2-705M'
 
-MODEL_NAME = f'Baby-Llama-58M-NSample_Contrastive_Student'
+MODEL_NAME = f'Baby-Llama-58M-Contrastive_Student'
 MODEL_OUTPUT = Path('./models') / MODEL_NAME
 EVAL_SAMPLES = 8192
 
@@ -75,26 +76,21 @@ print(f'model num parameters: student = {student.num_parameters()}')
 print(f'model num parameters: teacher1 = {teacher1.num_parameters()}')
 print(f'model num parameters: teacher2 = {teacher2.num_parameters()}')
 
-# N-sample contrastive loss (InfoNCE-style)
-def n_sample_contrastive_loss(student_logits, teacher_logits, temperature):
-    batch_size = student_logits.size(0)
+# N-Sample Contrastive loss function
+def n_sample_contrastive_loss(student_outputs, teacher_outputs, temperature, n_samples):
+    # Normalize logits
+    student_logits = F.normalize(student_outputs, dim=-1)
     
-    # Normalize the logits
-    student_logits = F.normalize(student_logits, dim=-1)
-    teacher_logits = F.normalize(teacher_logits, dim=-1)
+    # Stack teacher logits for N-sample contrastive loss
+    teacher_logits_stack = torch.stack([F.normalize(teacher_output, dim=-1) for teacher_output in teacher_outputs])
 
-    # Compute similarity matrix between student and teacher predictions
-    logits = torch.mm(student_logits, teacher_logits.t())  # [batch_size, batch_size]
-
-    # Apply temperature scaling
-    logits /= temperature
-
-    # Labels are simply the diagonal (i.e., matching student-teacher pairs)
-    labels = torch.arange(batch_size).long().to(logits.device)
-
-    # Contrastive loss (cross-entropy between positive pair and negatives)
-    contrastive_loss_fn = nn.CrossEntropyLoss()
-    return contrastive_loss_fn(logits, labels)
+    # Compute similarities (dot product or cosine similarity)
+    similarities = torch.einsum('ijk,ilk->ijl', student_logits.unsqueeze(1), teacher_logits_stack)  # [Batch_size, N_samples, Sequence_length]
+    
+    # Softmax to create probabilities over N-sample contrastive samples
+    contrastive_loss_value = -torch.mean(torch.log(F.softmax(similarities / temperature, dim=1).sum(dim=1)))
+    
+    return contrastive_loss_value
 
 # Custom TrainingArguments class to include contrastive weight
 class DistillationTrainingArguments(TrainingArguments):
@@ -104,33 +100,35 @@ class DistillationTrainingArguments(TrainingArguments):
         self.temperature = temperature
         self.contrastive_weight = contrastive_weight
 
-# Custom Trainer to include distillation and N-sample contrastive loss
+# Custom Trainer to include distillation and contrastive loss with N-sample contrastive learning
 class DistillationTrainer(Trainer):
-    def __init__(self, *args, teacher_models=None, contrastive_weight=0.1, **kwargs):
+    def __init__(self, *args, teacher_models=None, contrastive_weight=0.1, n_samples=5, **kwargs):
         super().__init__(*args, **kwargs)
         self.teachers = teacher_models
         self.contrastive_weight = contrastive_weight
+        self.n_samples = n_samples
         for teacher in self.teachers:
             self._move_model_to_device(teacher, self.model.device)
             teacher.eval()
 
     def compute_loss(self, model, inputs, return_outputs=False):
+        # Compute student output
         outputs_student = model(**inputs)
         student_loss = outputs_student.loss
 
-        # Compute teacher output
+        # Compute teacher outputs
         with torch.no_grad():
             all_teacher_logits = []
             for teacher in self.teachers:
                 outputs_teacher = teacher(**inputs)
                 all_teacher_logits.append(outputs_teacher.logits)
-            avg_teacher_logits = torch.stack(all_teacher_logits).mean(dim=0)
 
-        # Assert size match between student and teacher logits
-        assert outputs_student.logits.size() == avg_teacher_logits.size()
+        # Ensure output size consistency
+        assert outputs_student.logits.size() == all_teacher_logits[0].size()
 
-        # Compute knowledge distillation loss (KLDivLoss)
+        # Compute KLDiv loss between student and average teacher outputs
         loss_function = nn.KLDivLoss(reduction="batchmean")
+        avg_teacher_logits = torch.stack(all_teacher_logits).mean(dim=0)
         loss_logits = (
             loss_function(
                 F.log_softmax(outputs_student.logits / self.args.temperature, dim=-1),
@@ -140,9 +138,9 @@ class DistillationTrainer(Trainer):
         )
 
         # Compute N-sample contrastive loss
-        contrastive_loss_value = n_sample_contrastive_loss(outputs_student.logits, avg_teacher_logits, self.args.temperature)
+        contrastive_loss_value = n_sample_contrastive_loss(outputs_student.logits, all_teacher_logits, self.args.temperature, self.n_samples)
 
-        # Combine student loss, distillation loss, and N-sample contrastive loss
+        # Combine student loss, distillation loss, and contrastive loss
         loss = self.args.alpha * student_loss + (1.0 - self.args.alpha) * loss_logits
         total_loss = loss + self.contrastive_weight * contrastive_loss_value
 
@@ -185,10 +183,12 @@ def objective(trial):
         data_collator=data_collator,
         train_dataset=train_dataset,
         eval_dataset=eval_dataset,
+        n_samples=N_SAMPLES,  # N-sample contrastive learning
     )
 
-    # Enable Optuna's pruning feature (early stopping)
-    trainer.add_callback(optuna.integration.PyTorchLightningPruningCallback(trial, monitor="eval_loss"))
+    # Enable Optuna's TransformersPruningCallback (correct callback for HuggingFace Trainer)
+    pruning_callback = optuna.integration.TransformersPruningCallback(trial, "eval_loss")
+    trainer.add_callback(pruning_callback)
 
     # Train the model
     trainer.train()
@@ -239,6 +239,7 @@ trainer_full = DistillationTrainer(
     data_collator=data_collator,
     train_dataset=train_dataset,
     eval_dataset=full_eval_dataset,
+    n_samples=N_SAMPLES,  # N-sample contrastive learning
 )
 
 trainer_full.train()
