@@ -1,4 +1,6 @@
-import optuna
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
 from transformers import (
     GPT2TokenizerFast,
     LlamaForCausalLM,
@@ -8,13 +10,6 @@ from transformers import (
     TrainingArguments,
     DataCollatorForLanguageModeling,
 )
-from transformers import TrainerCallback
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-from torch.utils.data import Subset
-from random import sample
-
 from pathlib import Path
 import wandb
 
@@ -27,6 +22,7 @@ SEQ_LENGTH = 128
 
 TEMPERATURE = 2.0
 ALPHA = 0.5
+BEST_CONTRASTIVE_WEIGHT = 0.22005871902926422  # Best found contrastive weight
 #############
 
 PATH = Path("./")
@@ -34,7 +30,7 @@ PATH = Path("./")
 teacher_dir1 = PATH / './models/Llama-360M'
 teacher_dir2 = PATH / './models/GPT2-705M'
 
-MODEL_NAME = f'Baby-Llama-58M-Contrastive_Student'
+MODEL_NAME = f'TrainAll-Pairwise-Contrastive_Student'
 MODEL_OUTPUT = Path('./models') / MODEL_NAME
 EVAL_SAMPLES = 8192
 
@@ -46,10 +42,9 @@ tokenizer.bos_token = "<s>"
 tokenizer.eos_token = "</s>"
 tokenizer.pad_token = "<pad>"
 
-# Using a smaller dataset for faster hyperparameter tuning
+# Using the full dataset for training
 train_dataset = BabylmDataset(PATH / "data/babylm_10M_clean", SEQ_LENGTH, tokenizer=tokenizer, random_chunk=True)
-# Use a smaller subset for hyperparameter tuning
-eval_dataset = Subset(train_dataset, sample(range(len(train_dataset)), 1024))
+full_eval_dataset = BabylmDataset(PATH / "data/babylm_dev_clean", SEQ_LENGTH, tokenizer=tokenizer, offset=0)
 
 tokenizer.model_max_length = SEQ_LENGTH
 
@@ -149,110 +144,36 @@ class DistillationTrainer(Trainer):
 
         return (total_loss, outputs_student) if return_outputs else total_loss
 
-# Custom pruning callback based on eval_loss
-class HuggingFacePruningCallback(TrainerCallback):
-    def __init__(self, trial, metric_name):
-        super().__init__()
-        self.trial = trial
-        self.metric_name = metric_name
-
-    def on_evaluate(self, args, state, control, metrics=None, **kwargs):
-        if metrics is None:
-            return
-        current_score = metrics.get(self.metric_name)
-        if current_score is None:
-            return
-        # Report the metric score to Optuna
-        self.trial.report(current_score, step=state.global_step)
-        # Check if trial should be pruned
-        if self.trial.should_prune():
-            raise optuna.exceptions.TrialPruned()
-
-# Optuna objective function with pruning and limited search space
-def objective(trial):
-    # Suggest contrastive weight value from a reduced range (0.1 to 0.5)
-    contrastive_weight = trial.suggest_float('contrastive_weight', 0.1, 0.5)
-
-    # Define the training arguments with fewer epochs for faster tuning
-    training_args = DistillationTrainingArguments(
-        output_dir=MODEL_OUTPUT,
-        overwrite_output_dir=True,
-        save_strategy="epoch",
-        evaluation_strategy="epoch",
-        num_train_epochs=2,  # Fewer epochs for hyperparameter tuning
-        gradient_accumulation_steps=1,
-        per_device_train_batch_size=BATCH_SIZE,
-        save_total_limit=1,  
-        report_to="wandb",
-        warmup_steps=200, 
-        lr_scheduler_type="cosine",
-        learning_rate=LR,
-        logging_steps=20,
-        fp16=True,
-        load_best_model_at_end=True,
-        metric_for_best_model="eval_loss",
-        weight_decay=0.1,
-        alpha=ALPHA,
-        temperature=TEMPERATURE,
-        contrastive_weight=contrastive_weight,  # Tune this using Optuna
-    )
-
-    # Initialize the trainer
-    trainer = DistillationTrainer(
-        student,
-        training_args,
-        teacher_models=teachers,
-        data_collator=data_collator,
-        train_dataset=train_dataset,
-        eval_dataset=eval_dataset,
-    )
-
-    # Enable custom pruning callback
-    pruning_callback = HuggingFacePruningCallback(trial, "eval_loss")
-    trainer.add_callback(pruning_callback)
-
-    # Train the model
-    trainer.train()
-
-    # Evaluate the model and return eval_loss
-    eval_metrics = trainer.evaluate()
-    return eval_metrics["eval_loss"]
-
-# Initialize Optuna and start tuning with early stopping and limited trials
-study = optuna.create_study(direction="minimize")
-study.optimize(objective, n_trials=5)  # Limit to 5 trials
-
-# Get the best trial (best contrastive_weight)
-best_trial = study.best_trial
-print(f"Best trial: contrastive_weight={best_trial.params['contrastive_weight']}, eval_loss={best_trial.value}")
-
-# Rerun the training for longer duration using full dataset with the best contrastive_weight
-full_eval_dataset = BabylmDataset(PATH / "data/babylm_dev_clean", SEQ_LENGTH, tokenizer=tokenizer, offset=0)
-
+# Define training arguments for full dataset and 6 epochs with checkpointing
 training_args_full = DistillationTrainingArguments(
     output_dir=MODEL_OUTPUT,
     overwrite_output_dir=True,
-    save_strategy="epoch",
-    evaluation_strategy="epoch",
-    num_train_epochs=6,  # Longer training after finding the best hyperparameter
+    save_strategy="epoch",  # Save checkpoint after each epoch
+    evaluation_strategy="epoch",  # Evaluate after each epoch
+    num_train_epochs=6,  # Train for 6 epochs
     gradient_accumulation_steps=1,
     per_device_train_batch_size=BATCH_SIZE,
-    save_total_limit=1,
+    save_total_limit=2,  # Limit the number of checkpoints to 2 (last and best)
     report_to="wandb",
     warmup_steps=200,
     lr_scheduler_type="cosine",
     learning_rate=LR,
     logging_steps=20,
     fp16=True,
-    load_best_model_at_end=True,
-    metric_for_best_model="eval_loss",
+    load_best_model_at_end=True,  # Load the best model at the end of training
+    metric_for_best_model="eval_loss",  # Use evaluation loss to choose the best model
     weight_decay=0.1,
     alpha=ALPHA,
     temperature=TEMPERATURE,
-    contrastive_weight=best_trial.params['contrastive_weight'],  # Best contrastive weight
+    contrastive_weight=BEST_CONTRASTIVE_WEIGHT,  # Use best-found contrastive weight
 )
 
-# Train again using the full dataset
+# Check if a checkpoint exists to resume training
+resume_from_checkpoint = None
+if (MODEL_OUTPUT / "pytorch_model.bin").exists():
+    resume_from_checkpoint = str(MODEL_OUTPUT)
+
+# Train the model using the full dataset
 trainer_full = DistillationTrainer(
     student,
     training_args_full,
@@ -262,4 +183,5 @@ trainer_full = DistillationTrainer(
     eval_dataset=full_eval_dataset,
 )
 
-trainer_full.train()
+# Train, resuming from the last checkpoint if available
+trainer_full.train(resume_from_checkpoint=resume_from_checkpoint)
