@@ -130,6 +130,22 @@ class DistillationTrainer(Trainer):
 
         return (total_loss, outputs_student) if return_outputs else total_loss
 
+# Custom pruning callback based on eval_loss
+class HuggingFacePruningCallback:
+    def __init__(self, trial, metric_name):
+        self.trial = trial
+        self.metric_name = metric_name
+
+    def on_evaluate(self, args, state, control, metrics=None, **kwargs):
+        if metrics is None:
+            return
+        current_score = metrics.get(self.metric_name)
+        if current_score is None:
+            return
+        self.trial.report(current_score, step=state.global_step)
+        if self.trial.should_prune():
+            raise optuna.TrialPruned()
+
 # Optuna objective function with pruning and limited search space
 def objective(trial):
     # Suggest contrastive weight value from a reduced range (0.1 to 0.5)
@@ -159,7 +175,7 @@ def objective(trial):
         contrastive_weight=contrastive_weight,  # Tune this using Optuna
     )
 
-    # Initialize the trainer with early stopping
+    # Initialize the trainer
     trainer = DistillationTrainer(
         student,
         training_args,
@@ -169,8 +185,8 @@ def objective(trial):
         eval_dataset=eval_dataset,
     )
 
-    # Enable Optuna's TransformersPruningCallback (correct callback for HuggingFace Trainer)
-    pruning_callback = optuna.integration.TransformersPruningCallback(trial, "eval_loss")
+    # Enable custom pruning callback
+    pruning_callback = HuggingFacePruningCallback(trial, "eval_loss")
     trainer.add_callback(pruning_callback)
 
     # Train the model
