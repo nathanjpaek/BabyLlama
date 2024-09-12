@@ -1,0 +1,450 @@
+{
+  "results": {
+    "ewok_filtered": {
+      "acc,none": 0.49812214987881515,
+      "acc_stderr,none": 0.005731654738909332,
+      "alias": "ewok_filtered"
+    },
+    "ewok_agent-properties_filtered": {
+      "acc,none": 0.4972850678733032,
+      "acc_stderr,none": 0.010638141044451429,
+      "alias": " - ewok_agent-properties_filtered"
+    },
+    "ewok_material-dynamics_filtered": {
+      "acc,none": 0.487012987012987,
+      "acc_stderr,none": 0.01802437799765746,
+      "alias": " - ewok_material-dynamics_filtered"
+    },
+    "ewok_material-properties_filtered": {
+      "acc,none": 0.49411764705882355,
+      "acc_stderr,none": 0.03845887667126837,
+      "alias": " - ewok_material-properties_filtered"
+    },
+    "ewok_physical-dynamics_filtered": {
+      "acc,none": 0.49166666666666664,
+      "acc_stderr,none": 0.045828558447483556,
+      "alias": " - ewok_physical-dynamics_filtered"
+    },
+    "ewok_physical-interactions_filtered": {
+      "acc,none": 0.5,
+      "acc_stderr,none": 0.021223817998900447,
+      "alias": " - ewok_physical-interactions_filtered"
+    },
+    "ewok_physical-relations_filtered": {
+      "acc,none": 0.5012224938875306,
+      "acc_stderr,none": 0.017492733427822548,
+      "alias": " - ewok_physical-relations_filtered"
+    },
+    "ewok_quantitative-properties_filtered": {
+      "acc,none": 0.5286624203821656,
+      "acc_stderr,none": 0.028215196869241992,
+      "alias": " - ewok_quantitative-properties_filtered"
+    },
+    "ewok_social-interactions_filtered": {
+      "acc,none": 0.5034013605442177,
+      "acc_stderr,none": 0.02920963600102045,
+      "alias": " - ewok_social-interactions_filtered"
+    },
+    "ewok_social-properties_filtered": {
+      "acc,none": 0.5030487804878049,
+      "acc_stderr,none": 0.0276495491575599,
+      "alias": " - ewok_social-properties_filtered"
+    },
+    "ewok_social-relations_filtered": {
+      "acc,none": 0.4974160206718346,
+      "acc_stderr,none": 0.012712151144348567,
+      "alias": " - ewok_social-relations_filtered"
+    },
+    "ewok_spatial-relations_filtered": {
+      "acc,none": 0.47551020408163264,
+      "acc_stderr,none": 0.02258364365934477,
+      "alias": " - ewok_spatial-relations_filtered"
+    }
+  },
+  "groups": {
+    "ewok_filtered": {
+      "acc,none": 0.49812214987881515,
+      "acc_stderr,none": 0.005731654738909332,
+      "alias": "ewok_filtered"
+    }
+  },
+  "group_subtasks": {
+    "ewok_filtered": [
+      "ewok_social-properties_filtered",
+      "ewok_spatial-relations_filtered",
+      "ewok_social-relations_filtered",
+      "ewok_physical-dynamics_filtered",
+      "ewok_agent-properties_filtered",
+      "ewok_social-interactions_filtered",
+      "ewok_material-dynamics_filtered",
+      "ewok_physical-interactions_filtered",
+      "ewok_physical-relations_filtered",
+      "ewok_material-properties_filtered",
+      "ewok_quantitative-properties_filtered"
+    ]
+  },
+  "configs": {
+    "ewok_agent-properties_filtered": {
+      "task": "ewok_agent-properties_filtered",
+      "group": "ewok_filtered",
+      "dataset_path": "json",
+      "dataset_kwargs": {
+        "data_files": "evaluation_data/ewok_filtered/agent-properties.jsonl"
+      },
+      "validation_split": "train",
+      "doc_to_text": "{{Context1}}",
+      "doc_to_target": 0,
+      "doc_to_choice": "{{[Target1, Target2]}}",
+      "description": "",
+      "target_delimiter": " ",
+      "fewshot_delimiter": "\n\n",
+      "num_fewshot": 0,
+      "metric_list": [
+        {
+          "metric": "acc",
+          "weight_by_size": false
+        }
+      ],
+      "output_type": "multiple_choice",
+      "repeats": 1,
+      "should_decontaminate": true,
+      "doc_to_decontamination_query": "{{Context1}} {{Target1}}",
+      "metadata": {
+        "version": 1.0
+      }
+    },
+    "ewok_material-dynamics_filtered": {
+      "task": "ewok_material-dynamics_filtered",
+      "group": "ewok_filtered",
+      "dataset_path": "json",
+      "dataset_kwargs": {
+        "data_files": "evaluation_data/ewok_filtered/material-dynamics.jsonl"
+      },
+      "validation_split": "train",
+      "doc_to_text": "{{Context1}}",
+      "doc_to_target": 0,
+      "doc_to_choice": "{{[Target1, Target2]}}",
+      "description": "",
+      "target_delimiter": " ",
+      "fewshot_delimiter": "\n\n",
+      "num_fewshot": 0,
+      "metric_list": [
+        {
+          "metric": "acc",
+          "weight_by_size": false
+        }
+      ],
+      "output_type": "multiple_choice",
+      "repeats": 1,
+      "should_decontaminate": true,
+      "doc_to_decontamination_query": "{{Context1}} {{Target1}}",
+      "metadata": {
+        "version": 1.0
+      }
+    },
+    "ewok_material-properties_filtered": {
+      "task": "ewok_material-properties_filtered",
+      "group": "ewok_filtered",
+      "dataset_path": "json",
+      "dataset_kwargs": {
+        "data_files": "evaluation_data/ewok_filtered/material-properties.jsonl"
+      },
+      "validation_split": "train",
+      "doc_to_text": "{{Context1}}",
+      "doc_to_target": 0,
+      "doc_to_choice": "{{[Target1, Target2]}}",
+      "description": "",
+      "target_delimiter": " ",
+      "fewshot_delimiter": "\n\n",
+      "num_fewshot": 0,
+      "metric_list": [
+        {
+          "metric": "acc",
+          "weight_by_size": false
+        }
+      ],
+      "output_type": "multiple_choice",
+      "repeats": 1,
+      "should_decontaminate": true,
+      "doc_to_decontamination_query": "{{Context1}} {{Target1}}",
+      "metadata": {
+        "version": 1.0
+      }
+    },
+    "ewok_physical-dynamics_filtered": {
+      "task": "ewok_physical-dynamics_filtered",
+      "group": "ewok_filtered",
+      "dataset_path": "json",
+      "dataset_kwargs": {
+        "data_files": "evaluation_data/ewok_filtered/physical-dynamics.jsonl"
+      },
+      "validation_split": "train",
+      "doc_to_text": "{{Context1}}",
+      "doc_to_target": 0,
+      "doc_to_choice": "{{[Target1, Target2]}}",
+      "description": "",
+      "target_delimiter": " ",
+      "fewshot_delimiter": "\n\n",
+      "num_fewshot": 0,
+      "metric_list": [
+        {
+          "metric": "acc",
+          "weight_by_size": false
+        }
+      ],
+      "output_type": "multiple_choice",
+      "repeats": 1,
+      "should_decontaminate": true,
+      "doc_to_decontamination_query": "{{Context1}} {{Target1}}",
+      "metadata": {
+        "version": 1.0
+      }
+    },
+    "ewok_physical-interactions_filtered": {
+      "task": "ewok_physical-interactions_filtered",
+      "group": "ewok_filtered",
+      "dataset_path": "json",
+      "dataset_kwargs": {
+        "data_files": "evaluation_data/ewok_filtered/physical-interactions.jsonl"
+      },
+      "validation_split": "train",
+      "doc_to_text": "{{Context1}}",
+      "doc_to_target": 0,
+      "doc_to_choice": "{{[Target1, Target2]}}",
+      "description": "",
+      "target_delimiter": " ",
+      "fewshot_delimiter": "\n\n",
+      "num_fewshot": 0,
+      "metric_list": [
+        {
+          "metric": "acc",
+          "weight_by_size": false
+        }
+      ],
+      "output_type": "multiple_choice",
+      "repeats": 1,
+      "should_decontaminate": true,
+      "doc_to_decontamination_query": "{{Context1}} {{Target1}}",
+      "metadata": {
+        "version": 1.0
+      }
+    },
+    "ewok_physical-relations_filtered": {
+      "task": "ewok_physical-relations_filtered",
+      "group": "ewok_filtered",
+      "dataset_path": "json",
+      "dataset_kwargs": {
+        "data_files": "evaluation_data/ewok_filtered/physical-relations.jsonl"
+      },
+      "validation_split": "train",
+      "doc_to_text": "{{Context1}}",
+      "doc_to_target": 0,
+      "doc_to_choice": "{{[Target1, Target2]}}",
+      "description": "",
+      "target_delimiter": " ",
+      "fewshot_delimiter": "\n\n",
+      "num_fewshot": 0,
+      "metric_list": [
+        {
+          "metric": "acc",
+          "weight_by_size": false
+        }
+      ],
+      "output_type": "multiple_choice",
+      "repeats": 1,
+      "should_decontaminate": true,
+      "doc_to_decontamination_query": "{{Context1}} {{Target1}}",
+      "metadata": {
+        "version": 1.0
+      }
+    },
+    "ewok_quantitative-properties_filtered": {
+      "task": "ewok_quantitative-properties_filtered",
+      "group": "ewok_filtered",
+      "dataset_path": "json",
+      "dataset_kwargs": {
+        "data_files": "evaluation_data/ewok_filtered/quantitative-properties.jsonl"
+      },
+      "validation_split": "train",
+      "doc_to_text": "{{Context1}}",
+      "doc_to_target": 0,
+      "doc_to_choice": "{{[Target1, Target2]}}",
+      "description": "",
+      "target_delimiter": " ",
+      "fewshot_delimiter": "\n\n",
+      "num_fewshot": 0,
+      "metric_list": [
+        {
+          "metric": "acc",
+          "weight_by_size": false
+        }
+      ],
+      "output_type": "multiple_choice",
+      "repeats": 1,
+      "should_decontaminate": true,
+      "doc_to_decontamination_query": "{{Context1}} {{Target1}}",
+      "metadata": {
+        "version": 1.0
+      }
+    },
+    "ewok_social-interactions_filtered": {
+      "task": "ewok_social-interactions_filtered",
+      "group": "ewok_filtered",
+      "dataset_path": "json",
+      "dataset_kwargs": {
+        "data_files": "evaluation_data/ewok_filtered/social-interactions.jsonl"
+      },
+      "validation_split": "train",
+      "doc_to_text": "{{Context1}}",
+      "doc_to_target": 0,
+      "doc_to_choice": "{{[Target1, Target2]}}",
+      "description": "",
+      "target_delimiter": " ",
+      "fewshot_delimiter": "\n\n",
+      "num_fewshot": 0,
+      "metric_list": [
+        {
+          "metric": "acc",
+          "weight_by_size": false
+        }
+      ],
+      "output_type": "multiple_choice",
+      "repeats": 1,
+      "should_decontaminate": true,
+      "doc_to_decontamination_query": "{{Context1}} {{Target1}}",
+      "metadata": {
+        "version": 1.0
+      }
+    },
+    "ewok_social-properties_filtered": {
+      "task": "ewok_social-properties_filtered",
+      "group": "ewok_filtered",
+      "dataset_path": "json",
+      "dataset_kwargs": {
+        "data_files": "evaluation_data/ewok_filtered/social-properties.jsonl"
+      },
+      "validation_split": "train",
+      "doc_to_text": "{{Context1}}",
+      "doc_to_target": 0,
+      "doc_to_choice": "{{[Target1, Target2]}}",
+      "description": "",
+      "target_delimiter": " ",
+      "fewshot_delimiter": "\n\n",
+      "num_fewshot": 0,
+      "metric_list": [
+        {
+          "metric": "acc",
+          "weight_by_size": false
+        }
+      ],
+      "output_type": "multiple_choice",
+      "repeats": 1,
+      "should_decontaminate": true,
+      "doc_to_decontamination_query": "{{Context1}} {{Target1}}",
+      "metadata": {
+        "version": 1.0
+      }
+    },
+    "ewok_social-relations_filtered": {
+      "task": "ewok_social-relations_filtered",
+      "group": "ewok_filtered",
+      "dataset_path": "json",
+      "dataset_kwargs": {
+        "data_files": "evaluation_data/ewok_filtered/social-relations.jsonl"
+      },
+      "validation_split": "train",
+      "doc_to_text": "{{Context1}}",
+      "doc_to_target": 0,
+      "doc_to_choice": "{{[Target1, Target2]}}",
+      "description": "",
+      "target_delimiter": " ",
+      "fewshot_delimiter": "\n\n",
+      "num_fewshot": 0,
+      "metric_list": [
+        {
+          "metric": "acc",
+          "weight_by_size": false
+        }
+      ],
+      "output_type": "multiple_choice",
+      "repeats": 1,
+      "should_decontaminate": true,
+      "doc_to_decontamination_query": "{{Context1}} {{Target1}}",
+      "metadata": {
+        "version": 1.0
+      }
+    },
+    "ewok_spatial-relations_filtered": {
+      "task": "ewok_spatial-relations_filtered",
+      "group": "ewok_filtered",
+      "dataset_path": "json",
+      "dataset_kwargs": {
+        "data_files": "evaluation_data/ewok_filtered/spatial-relations.jsonl"
+      },
+      "validation_split": "train",
+      "doc_to_text": "{{Context1}}",
+      "doc_to_target": 0,
+      "doc_to_choice": "{{[Target1, Target2]}}",
+      "description": "",
+      "target_delimiter": " ",
+      "fewshot_delimiter": "\n\n",
+      "num_fewshot": 0,
+      "metric_list": [
+        {
+          "metric": "acc",
+          "weight_by_size": false
+        }
+      ],
+      "output_type": "multiple_choice",
+      "repeats": 1,
+      "should_decontaminate": true,
+      "doc_to_decontamination_query": "{{Context1}} {{Target1}}",
+      "metadata": {
+        "version": 1.0
+      }
+    }
+  },
+  "versions": {
+    "ewok_agent-properties_filtered": 1.0,
+    "ewok_material-dynamics_filtered": 1.0,
+    "ewok_material-properties_filtered": 1.0,
+    "ewok_physical-dynamics_filtered": 1.0,
+    "ewok_physical-interactions_filtered": 1.0,
+    "ewok_physical-relations_filtered": 1.0,
+    "ewok_quantitative-properties_filtered": 1.0,
+    "ewok_social-interactions_filtered": 1.0,
+    "ewok_social-properties_filtered": 1.0,
+    "ewok_social-relations_filtered": 1.0,
+    "ewok_spatial-relations_filtered": 1.0
+  },
+  "n-shot": {
+    "ewok_agent-properties_filtered": 0,
+    "ewok_filtered": 0,
+    "ewok_material-dynamics_filtered": 0,
+    "ewok_material-properties_filtered": 0,
+    "ewok_physical-dynamics_filtered": 0,
+    "ewok_physical-interactions_filtered": 0,
+    "ewok_physical-relations_filtered": 0,
+    "ewok_quantitative-properties_filtered": 0,
+    "ewok_social-interactions_filtered": 0,
+    "ewok_social-properties_filtered": 0,
+    "ewok_social-relations_filtered": 0,
+    "ewok_spatial-relations_filtered": 0
+  },
+  "config": {
+    "model": "hf",
+    "model_args": "pretrained=../models/Baby-Llama-58M,backend=causal",
+    "batch_size": "128",
+    "batch_sizes": [],
+    "device": "cuda:0",
+    "use_cache": null,
+    "limit": null,
+    "bootstrap_iters": 100000,
+    "gen_kwargs": null
+  },
+  "git_hash": "7339a7b2",
+  "date": 1726129707.5063481,
+  "pretty_env_info": "PyTorch version: 2.4.1\nIs debug build: False\nCUDA used to build PyTorch: None\nROCM used to build PyTorch: N/A\n\nOS: macOS 13.3 (arm64)\nGCC version: Could not collect\nClang version: 14.0.3 (clang-1403.0.22.14.1)\nCMake version: Could not collect\nLibc version: N/A\n\nPython version: 3.12.5 (main, Aug  6 2024, 19:08:49) [Clang 15.0.0 (clang-1500.1.0.2.5)] (64-bit runtime)\nPython platform: macOS-13.3-arm64-arm-64bit\nIs CUDA available: False\nCUDA runtime version: No CUDA\nCUDA_MODULE_LOADING set to: N/A\nGPU models and configuration: No CUDA\nNvidia driver version: No CUDA\ncuDNN version: No CUDA\nHIP runtime version: N/A\nMIOpen runtime version: N/A\nIs XNNPACK available: True\n\nCPU:\nApple M1 Max\n\nVersions of relevant libraries:\n[pip3] numpy==1.26.4\n[pip3] torch==2.4.1\n[conda] blas                      1.0                         mkl  \n[conda] mkl                       2021.2.0           hecd8cb5_269  \n[conda] mkl-service               2.3.0            py38h9ed2024_1  \n[conda] mkl_fft                   1.3.0            py38h4a7008c_2  \n[conda] mkl_random                1.2.1            py38hb2f4e1b_2  \n[conda] numpy                     1.20.1           py38hd6e1bb9_0  \n[conda] numpy-base                1.20.1           py38h585ceec_0  \n[conda] numpydoc                  1.1.0              pyhd3eb1b0_1  \n[conda] torch                     2.2.2                    pypi_0    pypi",
+  "transformers_version": "4.44.2",
+  "upper_git_hash": "c8fab641931b497626b8359d45e050cae7b1b913"
+}
