@@ -30,7 +30,7 @@ PATH = Path("./")
 teacher_dir1 = PATH / './models/Llama-360M'
 teacher_dir2 = PATH / './models/GPT2-705M'
 
-MODEL_NAME = f'TrainAll-Pairwise-Contrastive_Student'
+MODEL_NAME = f'TrainAll-2-Pairwise-Contrastive_Student'
 MODEL_OUTPUT = Path('./models') / MODEL_NAME
 EVAL_SAMPLES = 8192
 
@@ -126,16 +126,16 @@ class DistillationTrainer(Trainer):
 
         return (total_loss, outputs_student) if return_outputs else total_loss
 
-# Define training arguments for full dataset and 6 epochs with checkpointing
+# Define training arguments for full dataset and 6 epochs without evaluating every epoch
 training_args_full = DistillationTrainingArguments(
     output_dir=MODEL_OUTPUT,
     overwrite_output_dir=True,
     save_strategy="epoch",  # Save checkpoint after each epoch
-    evaluation_strategy="epoch",  # Evaluate after each epoch
+    evaluation_strategy="no",  # Only evaluate once after training
     num_train_epochs=6,  # Train for 6 epochs
     gradient_accumulation_steps=1,
     per_device_train_batch_size=BATCH_SIZE,
-    save_total_limit=2,  # Limit the number of checkpoints to 2 (last and best)
+    save_total_limit=None,  # Limit the number of checkpoints to 2 (last and best)
     report_to="wandb",
     warmup_steps=200,
     lr_scheduler_type="cosine",
@@ -167,3 +167,6 @@ trainer_full = DistillationTrainer(
 
 # Train, resuming from the last checkpoint if available
 trainer_full.train(resume_from_checkpoint=resume_from_checkpoint)
+
+# Evaluate the model after training
+trainer_full.evaluate()
