@@ -144,46 +144,7 @@ class DistillationTrainer(Trainer):
 
         return (total_loss, outputs_student) if return_outputs else total_loss
 
-# Define initial training arguments for the first round of training
-training_args_full = DistillationTrainingArguments(
-    output_dir=MODEL_OUTPUT,
-    overwrite_output_dir=True,
-    save_strategy="epoch",  # Save checkpoint after each epoch
-    evaluation_strategy="no",  # No evaluation after each epoch
-    num_train_epochs=6,  # Train for 6 epochs
-    gradient_accumulation_steps=1,
-    per_device_train_batch_size=BATCH_SIZE,
-    save_total_limit=None,  # Limit the number of checkpoints to 2 (last and best)
-    report_to="wandb",
-    warmup_steps=200,
-    lr_scheduler_type="cosine",
-    learning_rate=LR,
-    logging_steps=20,
-    fp16=True,
-    load_best_model_at_end=False,  # Load the best model at the end of training
-    metric_for_best_model="eval_loss",  # Use evaluation loss to choose the best model
-    weight_decay=0.1,
-    alpha=ALPHA,
-    temperature=TEMPERATURE,
-    contrastive_weight=BEST_CONTRASTIVE_WEIGHT,  # Use best-found contrastive weight
-)
-
-# Train the model using the full dataset
-trainer_full = DistillationTrainer(
-    student,
-    training_args_full,
-    teacher_models=teachers,
-    data_collator=data_collator,
-    train_dataset=train_dataset,
-    eval_dataset=full_eval_dataset,
-)
-
-# Train, resuming from the last checkpoint if available
-trainer_full.train()
-
-# ---- Continuing from Checkpoint and Training for More Epochs ---- #
-
-# Define new training arguments to continue training
+# Define new training arguments to continue training from checkpoint
 training_args_continue = DistillationTrainingArguments(
     output_dir=MODEL_OUTPUT,
     overwrite_output_dir=True,
@@ -192,7 +153,7 @@ training_args_continue = DistillationTrainingArguments(
     num_train_epochs=9,  # Continue training for more epochs (e.g., 12 total epochs)
     gradient_accumulation_steps=1,
     per_device_train_batch_size=BATCH_SIZE,
-    save_total_limit=None,  # Keep all the checkpoints, because why not?
+    save_total_limit=None,  # Keep all the checkpoints
     report_to="wandb",
     warmup_steps=200,
     lr_scheduler_type="cosine",
@@ -207,14 +168,10 @@ training_args_continue = DistillationTrainingArguments(
     contrastive_weight=BEST_CONTRASTIVE_WEIGHT,  # Use best-found contrastive weight
 )
 
-# Resume from the last checkpoint (checkpoint 6)
-# Resume from the last checkpoint (checkpoint-16326)
-resume_from_checkpoint = None
-if (MODEL_OUTPUT / "checkpoint-16326").exists():
-    resume_from_checkpoint = str(MODEL_OUTPUT / "checkpoint-16326")
-    print(f"Resuming training from checkpoint: {resume_from_checkpoint}")
-else:
-    print("No checkpoint found, starting fresh.")
+# Explicitly load from checkpoint-16326
+checkpoint_path = MODEL_OUTPUT / "checkpoint-16326"
+if not checkpoint_path.exists():
+    raise FileNotFoundError(f"Checkpoint {checkpoint_path} not found. Cannot resume training.")
 
 # Create a new trainer with the updated arguments
 trainer_continue = DistillationTrainer(
@@ -227,4 +184,4 @@ trainer_continue = DistillationTrainer(
 )
 
 # Continue training from the checkpoint
-trainer_continue.train(resume_from_checkpoint=resume_from_checkpoint)
+trainer_continue.train(resume_from_checkpoint=str(checkpoint_path))
