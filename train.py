@@ -10,9 +10,36 @@ from random import sample, seed
 from pathlib import Path
 import yaml
 import argparse
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from torch.utils.data import DataLoader
 
 from babylm_dataset import BabylmDataset
 
+
+# Contrastive Loss Function
+class ContrastiveLoss(nn.Module):
+    def __init__(self, temperature=0.07):
+        super(ContrastiveLoss, self).__init__()
+        self.temperature = temperature
+
+    def forward(self, z_i, z_j):
+        batch_size = z_i.size(0)
+        
+        # Normalize embeddings
+        z_i = F.normalize(z_i, dim=-1)
+        z_j = F.normalize(z_j, dim=-1)
+        
+        # Create similarity matrix
+        similarity_matrix = torch.matmul(z_i, z_j.T) / self.temperature
+        
+        # Create positive and negative labels
+        positive_labels = torch.arange(batch_size).cuda()
+        
+        # Compute loss (contrastive loss for positive and negative pairs)
+        loss = F.cross_entropy(similarity_matrix, positive_labels)
+        return loss
 
 
 parser = argparse.ArgumentParser()
@@ -100,9 +127,26 @@ elif config['model']['type'] == "GPTJ":
 print(f'model parameters = {model.num_parameters()}')
 
 
-output_dir = Path(config['logging']['output_dir']) / config['model']['name']
+output_dir = Path(config['logging']['output_dir']) / (config['model']['name'] + "_contrastive")
 accumulation_steps = config['training']['gradient_accumulation_steps']
 per_device_bsz = config['training']['batch_size'] // accumulation_steps
+
+# Custom Trainer for Contrastive Learning
+class ContrastiveTrainer(Trainer):
+    def compute_loss(self, model, inputs, return_outputs=False):
+        labels = inputs.pop("labels")
+        outputs = model(**inputs)
+        logits = outputs.logits
+
+        # Separate the embeddings for contrastive learning (e.g., from GPT-2 hidden layers)
+        z_i = logits[:, :SEQ_LENGTH // 2]   # First half embeddings
+        z_j = logits[:, SEQ_LENGTH // 2:]   # Second half embeddings
+
+        # Contrastive loss computation
+        contrastive_loss_fn = ContrastiveLoss(temperature=config['training']['contrastive_temperature'])
+        loss = contrastive_loss_fn(z_i, z_j)
+
+        return (loss, outputs) if return_outputs else loss
 
 training_args = TrainingArguments(
     output_dir=output_dir,
@@ -123,7 +167,7 @@ training_args = TrainingArguments(
     torch_compile = config['training'].get('torch_compile', False),
 )
 
-trainer = Trainer(
+trainer = ContrastiveTrainer(
     model=model,
     args=training_args,
     data_collator=data_collator,
@@ -137,7 +181,7 @@ if __name__ == "__main__":
     if config['logging']['wandb']:
         import wandb
         wandb.login()
-        wandb.init(project= config['logging']['project'], name=config['model']['name'], config=config)
+        wandb.init(project= config['logging']['project'], name=config['model']['name']+"_contrastive", config=config)
 
     trainer.train()
     trainer.save_model(output_dir)
