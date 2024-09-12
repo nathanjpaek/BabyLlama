@@ -27,10 +27,10 @@ BEST_CONTRASTIVE_WEIGHT = 0.22005871902926422  # Best found contrastive weight
 
 PATH = Path("./")
 
-teacher_dir1 = PATH / './models/Llama-360M'
-teacher_dir2 = PATH / './models/GPT2-705M'
+teacher_dir1 = PATH / './models/Llama-360M_contrastive'
+teacher_dir2 = PATH / './models/GPT2-705M_constrastive'
 
-MODEL_NAME = f'TrainAll-2-Nsample-Contrastive_Student'
+MODEL_NAME = f'TrainAll-2-Nsample-Contrastive_Both'
 MODEL_OUTPUT = Path('./models') / MODEL_NAME
 EVAL_SAMPLES = 8192
 
