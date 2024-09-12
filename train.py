@@ -138,9 +138,14 @@ class ContrastiveTrainer(Trainer):
         outputs = model(**inputs)
         logits = outputs.logits
 
-        # Separate the embeddings for contrastive learning (e.g., from GPT-2 hidden layers)
-        z_i = logits[:, :SEQ_LENGTH // 2]   # First half embeddings
-        z_j = logits[:, SEQ_LENGTH // 2:]   # Second half embeddings
+        # Split the logits along the sequence dimension
+        half_seq_length = SEQ_LENGTH // 2
+        z_i = logits[:, :half_seq_length, :]  # First half of the sequence
+        z_j = logits[:, half_seq_length:, :]  # Second half of the sequence
+
+        # Average the embeddings over the sequence dimension (to get (batch_size, hidden_dim))
+        z_i = z_i.mean(dim=1)
+        z_j = z_j.mean(dim=1)
 
         # Set temperature for contrastive loss
         contrastive_temperature = config['training'].get('contrastive_temperature', 0.07)  # Default temperature is 0.07
@@ -150,6 +155,7 @@ class ContrastiveTrainer(Trainer):
         loss = contrastive_loss_fn(z_i, z_j)
 
         return (loss, outputs) if return_outputs else loss
+
 
 training_args = TrainingArguments(
     output_dir=output_dir,
