@@ -34,3 +34,19 @@ To try to isolate these two effects, we also trained GPT-J, which uses RoPE (alt
 ![eval-loss](assets/wandb-Llama-gptj-gpt2.png)
 
 Llama achieves a lower loss than GPT-J and does so more quickly than GPT-2. It seems that SwiGLU -— a gated unit that is quadratic in its inputs -— performs better.
+
+################################
+
+HOW TO EVALUATE (FOR HONG):
+
+1. Merge with main branch
+2. Install requirements.txt 
+3. cd into evaluation-pipeline-2024
+4. Run this to evaluate on blimp tasks: ./eval_blimp.sh ../models/WHATEVER_MODEL_FOLDER
+4. Run this to evaluate on ewok tasks: ./eval_ewok.sh ../models/WHATEVER_MODEL_FOLDER
+5. Run this to finetune: ./finetune_model.sh ../models/WHATEVER_MODEL_FOLDER
+5. Run this to train lora adapters (which I think also evaluates on GLUE tasks): ./train_lora.sh ../models/WHATEVER_MODEL_FOLDER
+
+
+
+
