@@ -142,8 +142,11 @@ class ContrastiveTrainer(Trainer):
         z_i = logits[:, :SEQ_LENGTH // 2]   # First half embeddings
         z_j = logits[:, SEQ_LENGTH // 2:]   # Second half embeddings
 
+        # Set temperature for contrastive loss
+        contrastive_temperature = config['training'].get('contrastive_temperature', 0.07)  # Default temperature is 0.07
+        
         # Contrastive loss computation
-        contrastive_loss_fn = ContrastiveLoss(temperature=config['training']['contrastive_temperature'])
+        contrastive_loss_fn = ContrastiveLoss(temperature=contrastive_temperature)
         loss = contrastive_loss_fn(z_i, z_j)
 
         return (loss, outputs) if return_outputs else loss
