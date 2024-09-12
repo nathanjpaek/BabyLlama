@@ -1,0 +1,15 @@
+group: ewok_filtered
+dataset_path: json
+output_type: multiple_choice
+validation_split: train
+doc_to_text: "{{Context1}}"
+doc_to_target: 0
+doc_to_choice: "{{[Target1, Target2]}}"
+num_fewshot: 0
+should_decontaminate: true
+doc_to_decontamination_query: "{{Context1}} {{Target1}}"
+metric_list:
+  - metric: acc
+    weight_by_size: false
+metadata:
+  version: 1.0
