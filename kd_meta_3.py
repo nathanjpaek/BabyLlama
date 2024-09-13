@@ -92,13 +92,14 @@ class MAMLTrainer(Trainer):
         self.maml_inner_steps = maml_inner_steps
         self.alpha = alpha
         self.temperature = temperature
-        self.scaler = GradScaler()  # Initialize GradScaler
+        self.scaler = GradScaler()  # Initialize GradScaler for mixed precision
         
         for teacher in self.teachers:
             teacher.to(self.model.device)
             teacher.eval()
 
     def inner_loop(self, model, task_dataset):
+        # Clone the model and prepare it for inner-loop training
         adapted_model = type(model)(model.config).to(self.args.device)
         adapted_model.load_state_dict(model.state_dict())  # Copy weights from the original model
         inner_optimizer = torch.optim.SGD(adapted_model.parameters(), lr=self.maml_inner_lr)
@@ -119,54 +120,58 @@ class MAMLTrainer(Trainer):
             if "labels" not in inputs:
                 inputs["labels"] = inputs["input_ids"].clone()
 
-            # Forward pass through the model with autocast for mixed precision
+            # Forward pass with mixed precision
             with autocast():
                 outputs = adapted_model(**inputs)
                 loss = outputs.loss
 
-            # Scale the loss for mixed precision
+            # Scale the loss before backpropagation
             self.scaler.scale(loss).backward()
-            self.scaler.step(inner_optimizer)  # Use scaler to step the optimizer
-            self.scaler.update()  # Update the scaler
+
+            # Perform optimizer step with scaler
+            self.scaler.step(inner_optimizer)
+            self.scaler.update()  # Update the scaler for the next step
             inner_optimizer.zero_grad()
 
         return adapted_model
 
     def compute_loss(self, model, inputs, return_outputs=False):
+        # Select a random task for inner-loop adaptation
         task_name = sample(list(self.task_datasets.keys()), 1)[0]
         task_dataset = self.task_datasets[task_name]
         adapted_student = self.inner_loop(model, task_dataset)
         
-        # Forward pass for student model
+        # Forward pass for the student model
         with autocast():
             outputs_student = adapted_student(**inputs)
             student_loss = outputs_student.loss
             
-            # Forward pass for teacher models and distillation loss
+            # Forward pass for teacher models and compute distillation loss
             with torch.no_grad():
                 avg_teacher_logits = torch.stack([teacher(**inputs).logits for teacher in self.teachers]).mean(dim=0)
-            
+
             distill_loss = nn.KLDivLoss(reduction="batchmean")(
                 nn.functional.log_softmax(outputs_student.logits / self.temperature, dim=-1),
                 nn.functional.softmax(avg_teacher_logits / self.temperature, dim=-1)
             ) * (self.temperature ** 2)
-        
+
         # Combine student loss and distillation loss
         total_loss = self.alpha * student_loss + (1 - self.alpha) * distill_loss
         return (total_loss, outputs_student) if return_outputs else total_loss
 
     def training_step(self, model, inputs):
+        # Prepare the model for training
         model.train()
         inputs = self._prepare_inputs(inputs)
         
-        # Compute the loss with autocast for mixed precision
+        # Forward pass with mixed precision
         with autocast():
             loss = self.compute_loss(model, inputs)
         
         # Scale the loss and backpropagate
         self.scaler.scale(loss).backward()
 
-        # Return the scaled loss
+        # Return the scaled loss for logging
         return loss.detach()
 
     def optimizer_step(self, optimizer, **kwargs):
@@ -179,7 +184,8 @@ class MAMLTrainer(Trainer):
 
         # Step the optimizer using the scaled gradients
         self.scaler.step(optimizer)
-        self.scaler.update()
+        self.scaler.update()  # Update the scaler for the next iteration
+
 
 # Initialize wandb if needed
 wandb_log = True
