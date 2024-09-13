@@ -84,10 +84,14 @@ data_collator = DataCollatorForLanguageModeling(tokenizer=tokenizer, mlm=False)
 
 # Custom trainer with meta-learning
 class MAMLTrainer(Trainer):
-    def __init__(self, *args, teacher_models=None, task_datasets=None, **kwargs):
+    def __init__(self, *args, teacher_models=None, task_datasets=None, maml_inner_lr=1e-3, maml_inner_steps=1, alpha=0.5, temperature=2.0, **kwargs):
         super().__init__(*args, **kwargs)
         self.teachers = teacher_models
         self.task_datasets = task_datasets
+        self.maml_inner_lr = maml_inner_lr  # Store these custom attributes
+        self.maml_inner_steps = maml_inner_steps
+        self.alpha = alpha
+        self.temperature = temperature
         for teacher in self.teachers:
             teacher.to(self.model.device)
             teacher.eval()
@@ -95,11 +99,11 @@ class MAMLTrainer(Trainer):
     def inner_loop(self, model, task_dataset):
         adapted_model = type(model)(model.config).to(self.args.device)
         adapted_model.load_state_dict(model.state_dict())  # Copy weights from the original model
-        inner_optimizer = torch.optim.SGD(adapted_model.parameters(), lr=self.args.maml_inner_lr)
+        inner_optimizer = torch.optim.SGD(adapted_model.parameters(), lr=self.maml_inner_lr)  # Use self.maml_inner_lr here
         task_dataloader = torch.utils.data.DataLoader(task_dataset, batch_size=self.args.per_device_train_batch_size)
 
         for step, batch in enumerate(task_dataloader):
-            if step >= self.args.maml_inner_steps:
+            if step >= self.maml_inner_steps:  # Use self.maml_inner_steps here
                 break
             batch = self._prepare_inputs(batch)
             outputs = adapted_model(**batch)
@@ -124,11 +128,11 @@ class MAMLTrainer(Trainer):
             avg_teacher_logits = torch.stack([teacher(**inputs).logits for teacher in self.teachers]).mean(dim=0)
         
         distill_loss = nn.KLDivLoss(reduction="batchmean")(
-            F.log_softmax(outputs_student.logits / self.args.temperature, dim=-1),
-            F.softmax(avg_teacher_logits / self.args.temperature, dim=-1)
-        ) * (self.args.temperature ** 2)
+            F.log_softmax(outputs_student.logits / self.temperature, dim=-1),  # Use self.temperature
+            F.softmax(avg_teacher_logits / self.temperature, dim=-1)  # Use self.temperature
+        ) * (self.temperature ** 2)
 
-        total_loss = self.args.alpha * student_loss + (1 - self.args.alpha) * distill_loss
+        total_loss = self.alpha * student_loss + (1 - self.alpha) * distill_loss  # Use self.alpha
 
         return (total_loss, outputs_student) if return_outputs else total_loss
 
@@ -139,6 +143,7 @@ wandb_log = True  # or False if you don't want to log to wandb
 if wandb_log:
     wandb.login()
     wandb.init(project='babylm', name=MODEL_NAME)
+
 # Custom MAML training arguments class
 class MAMLTrainingArguments(TrainingArguments):
     def __init__(self, *args, maml_inner_lr=1e-3, maml_inner_steps=1, alpha=0.5, temperature=2.0, **kwargs):
@@ -168,7 +173,7 @@ maml_training_args = MAMLTrainingArguments(
     weight_decay=0.1,
     alpha=ALPHA,
     temperature=TEMPERATURE,
-    maml_inner_lr=1e-3,  # This is the missing attribute
+    maml_inner_lr=1e-3,  # This is passed but accessed in the trainer
     maml_inner_steps=1,
 )
 
@@ -180,6 +185,10 @@ maml_trainer = MAMLTrainer(
     args=maml_training_args,
     teacher_models=teachers,
     task_datasets=task_datasets,
+    maml_inner_lr=maml_training_args.maml_inner_lr,  # Pass the custom args explicitly
+    maml_inner_steps=maml_training_args.maml_inner_steps,
+    alpha=maml_training_args.alpha,
+    temperature=maml_training_args.temperature,
     train_dataset=train_dataset,
     data_collator=data_collator,
     eval_dataset=eval_dataset,
