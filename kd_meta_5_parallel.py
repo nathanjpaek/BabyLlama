@@ -98,7 +98,7 @@ class MAMLTrainer(Trainer):
         self.alpha = alpha
         self.temperature = temperature
         for teacher in self.teachers:
-            teacher.to(self.model.device)
+            teacher.to(self.model.module.device)
             teacher.eval()
 
     def inner_loop(self, model, task_dataset):
