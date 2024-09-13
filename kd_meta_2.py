@@ -27,7 +27,7 @@ EVAL_SAMPLES = 8192
 
 # Paths and model names
 PATH = Path("./")
-MODEL_NAME = 'Baby-Llama-58M'
+MODEL_NAME = 'Meta-Student'
 MODEL_OUTPUT = PATH / 'models' / MODEL_NAME
 
 # Tokenizer setup
