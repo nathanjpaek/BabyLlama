@@ -142,14 +142,25 @@ class MAMLTrainer(Trainer):
                 # If it's a tensor, just pass it as input_ids
                 inputs = {"input_ids": batch.to(self.model.device)}
 
+            # Ensure 'labels' are included in inputs; otherwise, loss won't be computed
+            if "labels" not in inputs:
+                inputs["labels"] = inputs["input_ids"].clone()  # Or create labels based on your task
+
             # Forward pass for the adapted model
             outputs_student = adapted_model(**inputs)
+
+            # Ensure that the model outputs a loss
             student_loss = outputs_student.loss
+
+            if student_loss is None:
+                raise ValueError("Model did not return a loss. Ensure that 'labels' are provided in the inputs.")
+
             inner_optimizer.zero_grad()
             student_loss.backward()
             inner_optimizer.step()
 
         return adapted_model
+
 
 
     def compute_loss(self, model, inputs, return_outputs=False):
