@@ -184,32 +184,65 @@ class MAMLTrainer(Trainer):
         if self.args.gradient_accumulation_steps > 1 and not self.deepspeed:
             loss = loss / self.args.gradient_accumulation_steps
 
-        # Backpropagation with scaled gradients
-        self.scaler.scale(loss).backward()
+        # Scale the loss and compute gradients
+        scaled_loss = self.scaler.scale(loss)
+        scaled_loss.backward()
 
         return loss.detach()
 
+
     def train(self, resume_from_checkpoint=None, trial=None):
         # Ensure that scaler is initialized for every training session
+        self.scaler = GradScaler()
         return super().train(resume_from_checkpoint=resume_from_checkpoint, trial=trial)
 
-    def optimizer_step(self, model, optimizer, scheduler):
-        # Unscale the gradients before calling `clip_grad_norm_`
+    def optimizer_step(self, epoch, batch_idx, optimizer, optimizer_idx=0, optimizer_closure=None,
+                       **kwargs):
+        # Unscale the gradients
         self.scaler.unscale_(optimizer)
 
         # Clip the gradients if necessary
         if self.args.max_grad_norm is not None:
-            torch.nn.utils.clip_grad_norm_(model.parameters(), self.args.max_grad_norm)
+            self.clip_gradients(self.model, self.args.max_grad_norm)
 
         # Perform optimizer step using the scaler
         self.scaler.step(optimizer)
         self.scaler.update()
 
         # Update the learning rate
-        scheduler.step()
+        self.lr_scheduler.step()
 
+    def compute_loss(self, model, inputs, return_outputs=False):
+        task_name = sample(list(self.task_datasets.keys()), 1)[0]
+        task_dataset = self.task_datasets[task_name]
+        adapted_student = self.inner_loop(model, task_dataset)
 
-# ... [rest of the code remains unchanged] ...
+        # Apply autocast for mixed precision
+        with autocast():
+            outputs_student = adapted_student(**inputs)
+            student_loss = outputs_student.loss
+
+        if student_loss is None:
+            raise ValueError("Model did not return a loss. Ensure that 'labels' are provided in the inputs.")
+
+        with torch.no_grad():
+            all_teacher_logits = []
+            for teacher in self.teachers:
+                outputs_teacher = teacher(**inputs)
+                all_teacher_logits.append(outputs_teacher.logits)
+            avg_teacher_logits = torch.stack(all_teacher_logits).mean(dim=0)
+
+        # Distillation loss
+        loss_function = nn.KLDivLoss(reduction="batchmean")
+        loss_logits = (
+            loss_function(
+                F.log_softmax(outputs_student.logits / self.args.temperature, dim=-1),
+                F.softmax(avg_teacher_logits / self.args.temperature, dim=-1),
+            ) * (self.args.temperature ** 2)
+        )
+
+        loss = self.args.alpha * student_loss + (1.0 - self.args.alpha) * loss_logits
+        return loss
 
 # Initialize wandb if needed
 if wandb_log:
