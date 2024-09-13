@@ -5,18 +5,6 @@ from random import randrange
 from pathlib import Path
 
 class BabylmDataset(Dataset):
-    """
-    Example usage:
-    tokenizer = GPT2TokenizerFast(tokenizer_file= str(tokenizer_path))
-    tokenizer.bos_token = "<s>"
-    tokenizer.eos_token = "</s>"
-    tokenizer.pad_token = "<pad>"
-    train_dataset = BabylmDataset(PATH / "data/babylm_10M", SEQ_LENGTH, tokenizer=tokenizer, random_chunk=True)
-    full_eval_dataset = BabylmDataset(PATH / "data/babylm_dev", SEQ_LENGTH, tokenizer=tokenizer, offset=0)
-    eval_indices = sample(range(len(full_eval_dataset)), EVAL_SAMPLES)
-    eval_dataset = Subset(full_eval_dataset, eval_indices)
-    """
-
     def __init__(self, data_dir: str, seq_length: int, tokenizer, offset: int = 0, random_chunk: bool = False, tokenized_dir_override: str = None):
         self.seq_length = seq_length
         self.offset = offset
@@ -25,18 +13,17 @@ class BabylmDataset(Dataset):
 
         tokenizer_name = tokenizer.__class__.__name__
 
-        # If a tokenized directory override is provided, save tokenized files there
         if tokenized_dir_override:
             tokenized_dir = Path(tokenized_dir_override)
             tokenized_dir.mkdir(parents=True, exist_ok=True)  # Ensure the directory exists
             tokenized_file = tokenized_dir / f"tokenized_{tokenizer_name}_{tokenizer.vocab_size}.pt"
         else:
-            # Default behavior: save tokenized file in the same directory as the dataset file
             tokenized_file = Path(os.path.join(data_dir, f"tokenized_{tokenizer_name}_{tokenizer.vocab_size}.pt"))
 
         if tokenized_file.exists():
             print(f"Loading data from {tokenized_file}")
             self.data = torch.load(tokenized_file)
+            print(f"Loaded data type: {type(self.data)}, shape: {self.data.shape if isinstance(self.data, torch.Tensor) else 'N/A'}")
         else:
             data = []
             src_files = [str(f) for f in Path(data_dir).glob("**/*")
@@ -45,20 +32,26 @@ class BabylmDataset(Dataset):
             for src_file in src_files:
                 text = Path(src_file).read_text(encoding="utf-8")
                 encoded = self.tokenizer.encode(text)
-                print("🔥", src_file, "len:", len(encoded))
+                print(f"🔥 {src_file}, len: {len(encoded)}")
                 data.extend(encoded)
 
             self.data = torch.tensor(data)
 
-            # Save tokenized data
             print(f"Saving data to {tokenized_file}")
             torch.save(self.data, tokenized_file)
 
+        # Add a final check to make sure self.data is a tensor
+        if not isinstance(self.data, torch.Tensor):
+            raise ValueError(f"self.data is not a Tensor. Got {type(self.data)} instead.")
+
     def __len__(self):
+        # Add debugging to see what len(self.data) is before returning
+        print(f"self.data has length: {len(self.data)}")
         if self.random_chunk:
             return len(self.data) // self.seq_length - 1
         else:
             return (len(self.data) - self.offset) // self.seq_length
+
 
     def __getitem__(self, i):
         if self.random_chunk:
