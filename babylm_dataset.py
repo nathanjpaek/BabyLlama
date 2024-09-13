@@ -17,14 +17,22 @@ class BabylmDataset(Dataset):
     eval_dataset = Subset(full_eval_dataset, eval_indices)
     """
 
-    def __init__(self, data_dir: str, seq_length: int, tokenizer, offset: int=0, random_chunk: bool=False):
+    def __init__(self, data_dir: str, seq_length: int, tokenizer, offset: int = 0, random_chunk: bool = False, tokenized_dir_override: str = None):
         self.seq_length = seq_length
         self.offset = offset
         self.tokenizer = tokenizer
         self.random_chunk = random_chunk
 
         tokenizer_name = tokenizer.__class__.__name__
-        tokenized_file = Path(os.path.join(data_dir, f"tokenized_{tokenizer_name}_{tokenizer.vocab_size}.pt"))
+
+        # If a tokenized directory override is provided, save tokenized files there
+        if tokenized_dir_override:
+            tokenized_dir = Path(tokenized_dir_override)
+            tokenized_dir.mkdir(parents=True, exist_ok=True)  # Ensure the directory exists
+            tokenized_file = tokenized_dir / f"tokenized_{tokenizer_name}_{tokenizer.vocab_size}.pt"
+        else:
+            # Default behavior: save tokenized file in the same directory as the dataset file
+            tokenized_file = Path(os.path.join(data_dir, f"tokenized_{tokenizer_name}_{tokenizer.vocab_size}.pt"))
 
         if tokenized_file.exists():
             print(f"Loading data from {tokenized_file}")

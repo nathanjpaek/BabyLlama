@@ -57,16 +57,22 @@ task_dataset_paths = {
 # Define the tokenized directory
 tokenized_dir = PATH / "data/babylm_10M_clean_2/tokenized"
 tokenized_dir.mkdir(parents=True, exist_ok=True)  # Ensure it exists
-# Load each dataset into separate tasks
+# Load each dataset into separate tasks, specifying the tokenized directory
 task_datasets = {}
 for task_name, dataset_path in task_dataset_paths.items():
-    # Load each dataset with the correct dataset_path, not tokenized_dir
-    task_datasets[task_name] = BabylmDataset(str(dataset_path), SEQ_LENGTH, tokenizer=tokenizer, random_chunk=True)
+    task_datasets[task_name] = BabylmDataset(
+        str(dataset_path), 
+        SEQ_LENGTH, 
+        tokenizer=tokenizer, 
+        random_chunk=True, 
+        tokenized_dir_override=str(tokenized_dir)  # Override where tokenized data is saved
+    )
 
 # Check each task dataset for its length
 for task_name, dataset in task_datasets.items():
     print(f"Task: {task_name}")
     print(f"Length: {len(dataset)}")
+
 
 # For evaluation, load the evaluation dataset as usual
 full_eval_dataset = BabylmDataset(PATH / "data/babylm_dev_clean", SEQ_LENGTH, tokenizer=tokenizer, offset=0)
