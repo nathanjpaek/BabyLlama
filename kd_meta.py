@@ -168,37 +168,46 @@ class MAMLTrainer(Trainer):
             self.scaler.update()
 
         return adapted_model
-    def compute_loss(self, model, inputs, return_outputs=False):
-        task_name = sample(list(self.task_datasets.keys()), 1)[0]
-        task_dataset = self.task_datasets[task_name]
-        adapted_student = self.inner_loop(model, task_dataset)
 
-        # Apply autocast for mixed precision
+    def training_step(self, model: nn.Module, inputs: Dict[str, Union[torch.Tensor, Any]]) -> torch.Tensor:
+        """
+        Perform a training step on a batch of inputs.
+
+        Subclass and override to inject custom behavior.
+
+        Args:
+            model (`nn.Module`):
+                The model to train.
+            inputs (`Dict[str, Union[torch.Tensor, Any]]`):
+                The inputs and targets of the model.
+
+                The dictionary will be unpacked before being fed to the model. Most models expect the targets under the
+                argument `labels`. Check your model's documentation for all accepted arguments.
+
+        Return:
+            `torch.Tensor`: The tensor with training loss on this batch.
+        """
+        model.train()
+        inputs = self._prepare_inputs(inputs)
+
         with autocast():
-            outputs_student = adapted_student(**inputs)
-            student_loss = outputs_student.loss
+            loss = self.compute_loss(model, inputs)
 
-        if student_loss is None:
-            raise ValueError("Model did not return a loss. Ensure that 'labels' are provided in the inputs.")
+        if self.args.n_gpu > 1:
+            loss = loss.mean()  # mean() to average on multi-gpu parallel training
 
-        with torch.no_grad():
-            all_teacher_logits = []
-            for teacher in self.teachers:
-                outputs_teacher = teacher(**inputs)
-                all_teacher_logits.append(outputs_teacher.logits)
-            avg_teacher_logits = torch.stack(all_teacher_logits).mean(dim=0)
+        if self.args.gradient_accumulation_steps > 1 and not self.deepspeed:
+            # deepspeed handles loss scaling by gradient_accumulation_steps in its `backward`
+            loss = loss / self.args.gradient_accumulation_steps
 
-        # Distillation loss
-        loss_function = nn.KLDivLoss(reduction="batchmean")
-        loss_logits = (
-            loss_function(
-                F.log_softmax(outputs_student.logits / self.args.temperature, dim=-1),
-                F.softmax(avg_teacher_logits / self.args.temperature, dim=-1),
-            ) * (self.args.temperature ** 2)
-        )
+        self.scaler.scale(loss).backward()
 
-        loss = self.args.alpha * student_loss + (1.0 - self.args.alpha) * loss_logits
-        return loss
+        return loss.detach()
+
+    def train(self):
+        return super().train(resume_from_checkpoint=None, trial=None)
+
+# ... [rest of the code remains unchanged] ...
 
 # Initialize wandb if needed
 if wandb_log:
