@@ -29,13 +29,15 @@ PATH = Path("./")
 MODEL_NAME = 'Baby-Llama-58M'
 MODEL_OUTPUT = PATH / 'models' / MODEL_NAME
 
-# Tokenizer setup
 tokenizer_path = PATH / "models/gpt-clean-16000.json"
 tokenizer = GPT2TokenizerFast(tokenizer_file=str(tokenizer_path))
-tokenizer.bos_token = ""
-tokenizer.eos_token = ""
-tokenizer.pad_token = tokenizer.eos_token
-tokenizer.model_max_length = SEQ_LENGTH
+tokenizer.bos_token = "<s>"
+tokenizer.eos_token = "</s>"
+tokenizer.pad_token = "<pad>"  # Set pad token
+
+# Ensure the pad_token_id is properly set
+if tokenizer.pad_token_id is None:
+    tokenizer.pad_token_id = tokenizer.eos_token_id
 
 # Define paths for datasets
 task_dataset_paths = {
@@ -60,14 +62,14 @@ eval_dataset = Subset(full_eval_dataset, eval_indices)
 
 # Model configuration
 config = LlamaConfig(
-    vocab_size=tokenizer.vocab_size,
+    vocab_size=tokenizer.vocab_size,  # Ensure vocab_size matches tokenizer's vocab size
     hidden_size=512,
     num_hidden_layers=16,
     intermediate_size=1024,
     num_attention_heads=8,
-    bos_token_id=tokenizer.bos_token_id,
-    eos_token_id=tokenizer.eos_token_id,
-    pad_token_id=tokenizer.pad_token_id,  # Set pad_token_id explicitly
+    bos_token_id=tokenizer.convert_tokens_to_ids("<s>"),
+    eos_token_id=tokenizer.convert_tokens_to_ids("</s>"),
+    pad_token_id=tokenizer.convert_tokens_to_ids("<pad>"),  # Set pad_token_id correctly
     max_position_embeddings=2 * SEQ_LENGTH,
 )
 
