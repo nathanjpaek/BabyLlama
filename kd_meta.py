@@ -61,7 +61,7 @@ tokenized_dir.mkdir(parents=True, exist_ok=True)  # Ensure it exists
 task_datasets = {}
 for task_name, dataset_path in task_dataset_paths.items():
     tokenized_file_path = tokenized_dir / f"tokenized_{task_name}.pt"  # Save tokenized data here
-    task_datasets[task_name] = BabylmDataset(dataset_path, SEQ_LENGTH, tokenizer=tokenizer, tokenized_file=tokenized_file_path, random_chunk=True)
+    task_datasets[task_name] = BabylmDataset(str(tokenized_dir), SEQ_LENGTH, tokenizer=tokenizer, random_chunk=True)
 
 # For evaluation, load the evaluation dataset as usual
 full_eval_dataset = BabylmDataset(PATH / "data/babylm_dev_clean", SEQ_LENGTH, tokenizer=tokenizer, offset=0)
