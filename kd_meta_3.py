@@ -100,28 +100,34 @@ class MAMLTrainer(Trainer):
 
     def inner_loop(self, model, task_dataset):
         adapted_model = type(model)(model.config).to(self.args.device)
-        adapted_model.load_state_dict(model.state_dict())
+        adapted_model.load_state_dict(model.state_dict())  # Copy weights from the original model
         inner_optimizer = torch.optim.SGD(adapted_model.parameters(), lr=self.maml_inner_lr)
         task_dataloader = torch.utils.data.DataLoader(task_dataset, batch_size=self.args.per_device_train_batch_size)
-        
+
         for step, batch in enumerate(task_dataloader):
             if step >= self.maml_inner_steps:
                 break
-            
-            inputs = {key: value.to(self.args.device) for key, value in batch.items()}
+
+            # Check if batch is a dictionary, otherwise handle it as a tensor
+            if isinstance(batch, dict):
+                inputs = {key: value.to(self.args.device) for key, value in batch.items()}
+            else:
+                # If it's a tensor, assume it's input_ids and prepare inputs accordingly
+                inputs = {"input_ids": batch.to(self.args.device)}
+
+            # Ensure "labels" are present for computing the loss
             if "labels" not in inputs:
                 inputs["labels"] = inputs["input_ids"].clone()
-            
-            with autocast():
-                outputs = adapted_model(**inputs)
-                loss = outputs.loss
-            
-            self.scaler.scale(loss).backward()
-            self.scaler.step(inner_optimizer)
-            self.scaler.update()
-            inner_optimizer.zero_grad()
-        
+
+            # Forward pass through the model
+        outputs = adapted_model(**inputs)
+        loss = outputs.loss
+        loss.backward()
+        inner_optimizer.step()
+        inner_optimizer.zero_grad()
+
         return adapted_model
+
 
     def compute_loss(self, model, inputs, return_outputs=False):
         task_name = sample(list(self.task_datasets.keys()), 1)[0]
