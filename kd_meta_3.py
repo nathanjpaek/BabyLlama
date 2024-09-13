@@ -34,7 +34,7 @@ tokenizer_path = PATH / "models/gpt-clean-16000.json"
 tokenizer = GPT2TokenizerFast(tokenizer_file=str(tokenizer_path))
 tokenizer.bos_token = ""
 tokenizer.eos_token = ""
-tokenizer.pad_token = ""
+tokenizer.pad_token = tokenizer.eos_token
 tokenizer.model_max_length = SEQ_LENGTH
 
 # Define paths for datasets
@@ -65,9 +65,9 @@ config = LlamaConfig(
     num_hidden_layers=16,
     intermediate_size=1024,
     num_attention_heads=8,
-    bos_token_id=tokenizer.convert_tokens_to_ids(""),
-    eos_token_id=tokenizer.convert_tokens_to_ids(""),
-    pad_token_id=tokenizer.convert_tokens_to_ids(""),
+    bos_token_id=tokenizer.bos_token_id,
+    eos_token_id=tokenizer.eos_token_id,
+    pad_token_id=tokenizer.pad_token_id,  # Set pad_token_id explicitly
     max_position_embeddings=2 * SEQ_LENGTH,
 )
 
