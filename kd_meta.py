@@ -104,7 +104,7 @@ class MAMLTrainingArguments(TrainingArguments):
         self.maml_inner_lr = maml_inner_lr
         self.maml_inner_steps = maml_inner_steps
         super().__init__(*args, **kwargs)
-
+        
 class MAMLTrainer(Trainer):
     def __init__(self, *args, teacher_models=None, task_datasets=None, **kwargs):
         super().__init__(*args, **kwargs)
@@ -115,11 +115,16 @@ class MAMLTrainer(Trainer):
             teacher.eval()
 
     def inner_loop(self, model, task_dataset):
-        adapted_model = LlamaForCausalLM.from_config(model.config).to(self.model.device)
-        adapted_model.load_state_dict(model.state_dict())
+        """
+        Inner loop for MAML: Adapt model parameters for a specific task.
+        """
+        # Create a new model instance using the same configuration as the student model
+        adapted_model = LlamaForCausalLM(model.config).to(self.model.device)
+        adapted_model.load_state_dict(model.state_dict())  # Copy weights from the original model
+
         inner_optimizer = torch.optim.SGD(adapted_model.parameters(), lr=self.args.maml_inner_lr)
         task_dataloader = torch.utils.data.DataLoader(task_dataset, batch_size=self.args.per_device_train_batch_size)
-        
+
         for step, batch in enumerate(task_dataloader):
             if step >= self.args.maml_inner_steps:
                 break
@@ -130,6 +135,7 @@ class MAMLTrainer(Trainer):
             inner_optimizer.step()
 
         return adapted_model
+
 
     def compute_loss(self, model, inputs, return_outputs=False):
         task_name = sample(list(self.task_datasets.keys()), 1)[0]
