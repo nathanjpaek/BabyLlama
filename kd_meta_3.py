@@ -126,7 +126,8 @@ class MAMLTrainer(Trainer):
 
             # Scale the loss for mixed precision
             self.scaler.scale(loss).backward()
-            inner_optimizer.step()
+            self.scaler.step(inner_optimizer)  # Use scaler to step the optimizer
+            self.scaler.update()  # Update the scaler
             inner_optimizer.zero_grad()
 
         return adapted_model
@@ -179,7 +180,6 @@ class MAMLTrainer(Trainer):
         # Step the optimizer using the scaled gradients
         self.scaler.step(optimizer)
         self.scaler.update()
-
 
 # Initialize wandb if needed
 wandb_log = True
