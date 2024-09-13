@@ -103,7 +103,12 @@ class MAMLTrainer(Trainer):
 
     def inner_loop(self, model, task_dataset):
         adapted_model = type(model.module)(model.module.config).to(self.args.device)
-        adapted_model.load_state_dict(model.state_dict())  # Copy weights from the original model
+        # Access state_dict from the underlying model inside DataParallel
+        if isinstance(model, nn.DataParallel):
+            adapted_model.load_state_dict(model.module.state_dict())
+        else:
+            adapted_model.load_state_dict(model.state_dict())
+
         inner_optimizer = torch.optim.SGD(adapted_model.parameters(), lr=self.maml_inner_lr)  # Use self.maml_inner_lr here
         task_dataloader = torch.utils.data.DataLoader(task_dataset, batch_size=self.args.per_device_train_batch_size)
 
