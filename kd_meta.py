@@ -100,12 +100,15 @@ data_collator = DataCollatorForLanguageModeling(
 
 # MAML Trainer implementation
 class MAMLTrainingArguments(TrainingArguments):
-    def __init__(self, *args, alpha=0.5, temperature=2.0, maml_inner_lr=1e-3, maml_inner_steps=1, **kwargs):
-        self.alpha = alpha
-        self.temperature = temperature
-        self.maml_inner_lr = maml_inner_lr
-        self.maml_inner_steps = maml_inner_steps
+    def __init__(self, *args, teacher_models=None, task_datasets=None, **kwargs):
         super().__init__(*args, **kwargs)
+        self.teachers = teacher_models
+        self.task_datasets = task_datasets
+        for teacher in self.teachers:
+            self._move_model_to_device(teacher, self.model.device)
+            teacher.eval()
+        self.scaler = GradScaler() 
+
 
 class MAMLTrainer(Trainer):
     def __init__(self, *args, teacher_models=None, task_datasets=None, **kwargs):
@@ -117,6 +120,53 @@ class MAMLTrainer(Trainer):
             teacher.eval()
         self.scaler = GradScaler()  # Initialize the scaler for mixed precision
 
+    def inner_loop(self, model, task_dataset):
+        """
+        Inner loop for MAML: Adapt model parameters for a specific task.
+        """
+        adapted_model = LlamaForCausalLM(model.config).to(self.model.device)
+        adapted_model.load_state_dict(model.state_dict())  # Copy weights from the original model
+
+        inner_optimizer = torch.optim.SGD(adapted_model.parameters(), lr=self.args.maml_inner_lr)
+        task_dataloader = torch.utils.data.DataLoader(task_dataset, batch_size=self.args.per_device_train_batch_size)
+
+        for step, batch in enumerate(task_dataloader):
+            if step >= self.args.maml_inner_steps:
+                break
+
+            # Handle cases where batch is a tuple or tensor (unpack manually)
+            if isinstance(batch, dict):
+                inputs = {key: value.to(self.model.device) for key, value in batch.items()}
+            elif isinstance(batch, (tuple, list)):
+                inputs = {
+                    "input_ids": batch[0].to(self.model.device),
+                    "attention_mask": batch[1].to(self.model.device),
+                    "labels": batch[2].to(self.model.device) if len(batch) > 2 else None
+                }
+            else:
+                inputs = {"input_ids": batch.to(self.model.device)}
+
+            if "labels" not in inputs:
+                inputs["labels"] = inputs["input_ids"].clone()  # Add labels if missing
+
+            # Forward pass with autocast for mixed precision
+            with autocast():
+                outputs_student = adapted_model(**inputs)
+                student_loss = outputs_student.loss
+
+            if student_loss is None:
+                raise ValueError("Model did not return a loss. Ensure that 'labels' are provided in the inputs.")
+
+            inner_optimizer.zero_grad()
+
+            # Backpropagation with scaled gradients
+            self.scaler.scale(student_loss).backward()
+
+            # Step optimizer with scaled gradients
+            self.scaler.step(inner_optimizer)
+            self.scaler.update()
+
+        return adapted_model
     def compute_loss(self, model, inputs, return_outputs=False):
         task_name = sample(list(self.task_datasets.keys()), 1)[0]
         task_dataset = self.task_datasets[task_name]
@@ -138,33 +188,6 @@ class MAMLTrainer(Trainer):
             avg_teacher_logits = torch.stack(all_teacher_logits).mean(dim=0)
 
         # Distillation loss
-        loss_function = nn.KLDivLoss(reduction="batchmean")
-        loss_logits = (
-            loss_function(
-                F.log_softmax(outputs_student.logits / self.args.temperature, dim=-1),
-                F.softmax(avg_teacher_logits / self.args.temperature, dim=-1),
-            ) * (self.args.temperature ** 2)
-        )
-
-        loss = self.args.alpha * student_loss + (1.0 - self.args.alpha) * loss_logits
-        return loss
-
-
-
-    def compute_loss(self, model, inputs, return_outputs=False):
-        task_name = sample(list(self.task_datasets.keys()), 1)[0]
-        task_dataset = self.task_datasets[task_name]
-        adapted_student = self.inner_loop(model, task_dataset)
-        outputs_student = adapted_student(**inputs)
-        student_loss = outputs_student.loss
-
-        with torch.no_grad():
-            all_teacher_logits = []
-            for teacher in self.teachers:
-                outputs_teacher = teacher(**inputs)
-                all_teacher_logits.append(outputs_teacher.logits)
-            avg_teacher_logits = torch.stack(all_teacher_logits).mean(dim=0)
-
         loss_function = nn.KLDivLoss(reduction="batchmean")
         loss_logits = (
             loss_function(
