@@ -12,6 +12,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import  Subset
 from random import sample
+from torch.utils.data import ConcatDataset
 
 from pathlib import Path
 import wandb
@@ -198,12 +199,15 @@ maml_training_args = MAMLTrainingArguments(
     maml_inner_steps=1,   # Inner loop step count
 )
 
-# Initialize the trainer
+# Combine all task datasets into one dataset for training
+train_dataset = ConcatDataset(list(task_datasets.values()))
+
 maml_trainer = MAMLTrainer(
     model=student,
     args=maml_training_args,
     teacher_models=teachers,
-    task_datasets=task_datasets,  # Pass the task-specific datasets
+    task_datasets=task_datasets,  # Pass all task-specific datasets for meta-learning
+    train_dataset=train_dataset,  # Combine all tasks into a single training dataset
     data_collator=data_collator,
     eval_dataset=eval_dataset,
 )
