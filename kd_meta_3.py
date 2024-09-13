@@ -92,7 +92,7 @@ class MAMLTrainer(Trainer):
         self.maml_inner_steps = maml_inner_steps
         self.alpha = alpha
         self.temperature = temperature
-        self.scaler = GradScaler()
+        self.scaler = GradScaler()  # Initialize GradScaler
         
         for teacher in self.teachers:
             teacher.to(self.model.device)
@@ -119,25 +119,29 @@ class MAMLTrainer(Trainer):
             if "labels" not in inputs:
                 inputs["labels"] = inputs["input_ids"].clone()
 
-            # Forward pass through the model
-        outputs = adapted_model(**inputs)
-        loss = outputs.loss
-        loss.backward()
-        inner_optimizer.step()
-        inner_optimizer.zero_grad()
+            # Forward pass through the model with autocast for mixed precision
+            with autocast():
+                outputs = adapted_model(**inputs)
+                loss = outputs.loss
+
+            # Scale the loss for mixed precision
+            self.scaler.scale(loss).backward()
+            inner_optimizer.step()
+            inner_optimizer.zero_grad()
 
         return adapted_model
-
 
     def compute_loss(self, model, inputs, return_outputs=False):
         task_name = sample(list(self.task_datasets.keys()), 1)[0]
         task_dataset = self.task_datasets[task_name]
         adapted_student = self.inner_loop(model, task_dataset)
         
+        # Forward pass for student model
         with autocast():
             outputs_student = adapted_student(**inputs)
             student_loss = outputs_student.loss
             
+            # Forward pass for teacher models and distillation loss
             with torch.no_grad():
                 avg_teacher_logits = torch.stack([teacher(**inputs).logits for teacher in self.teachers]).mean(dim=0)
             
@@ -146,6 +150,7 @@ class MAMLTrainer(Trainer):
                 nn.functional.softmax(avg_teacher_logits / self.temperature, dim=-1)
             ) * (self.temperature ** 2)
         
+        # Combine student loss and distillation loss
         total_loss = self.alpha * student_loss + (1 - self.alpha) * distill_loss
         return (total_loss, outputs_student) if return_outputs else total_loss
 
@@ -153,12 +158,28 @@ class MAMLTrainer(Trainer):
         model.train()
         inputs = self._prepare_inputs(inputs)
         
+        # Compute the loss with autocast for mixed precision
         with autocast():
             loss = self.compute_loss(model, inputs)
         
+        # Scale the loss and backpropagate
         self.scaler.scale(loss).backward()
-        
+
+        # Return the scaled loss
         return loss.detach()
+
+    def optimizer_step(self, optimizer, **kwargs):
+        # Unscale gradients before clipping them
+        self.scaler.unscale_(optimizer)
+
+        # Optionally clip gradients
+        if self.args.max_grad_norm is not None:
+            torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.args.max_grad_norm)
+
+        # Step the optimizer using the scaled gradients
+        self.scaler.step(optimizer)
+        self.scaler.update()
+
 
 # Initialize wandb if needed
 wandb_log = True
