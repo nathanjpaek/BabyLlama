@@ -41,12 +41,12 @@ tokenizer.model_max_length = SEQ_LENGTH
 
 # Define paths for datasets in babylm_10M_clean
 task_dataset_paths = {
-    "childes": PATH / "data/babylm_10M_clean/childes.train",
-    "bnc_spoken": PATH / "data/babylm_10M_clean/bnc_spoken.train",
-    "gutenberg": PATH / "data/babylm_10M_clean/gutenberg.train",
-    "open_subtitles": PATH / "data/babylm_10M_clean/open_subtitles.train",
-    "simple_wiki": PATH / "data/babylm_10M_clean/simple_wiki.train",
-    "switchboard": PATH / "data/babylm_10M_clean/switchboard.train",
+    "childes": PATH / "data/babylm_10M_clean_2/childes.train",
+    "bnc_spoken": PATH / "data/babylm_10M_clean_2/bnc_spoken.train",
+    "gutenberg": PATH / "data/babylm_10M_clean_2/gutenberg.train",
+    "open_subtitles": PATH / "data/babylm_10M_clean_2/open_subtitles.train",
+    "simple_wiki": PATH / "data/babylm_10M_clean_2/simple_wiki.train",
+    "switchboard": PATH / "data/babylm_10M_clean_2/switchboard.train",
 }
 
 # Load each dataset into separate tasks, without saving tokenized data
