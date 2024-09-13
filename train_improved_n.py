@@ -17,49 +17,56 @@ import numpy as np
 
 from babylm_dataset import BabylmDataset
 
-# Contrastive Loss Function
-class ContrastiveLoss(nn.Module):
-    def __init__(self, temperature=0.07):
-        super(ContrastiveLoss, self).__init__()
+# N-sample Contrastive Loss Function
+class NSampleContrastiveLoss(nn.Module):
+    def __init__(self, temperature=0.07, num_samples=5):
+        super(NSampleContrastiveLoss, self).__init__()
         self.temperature = temperature
+        self.num_samples = num_samples  # number of positive augmentations for each sample
 
-    def forward(self, z_i, z_j):
+    def forward(self, z_i, z_j_samples):
         # Normalize embeddings
         z_i = F.normalize(z_i, dim=-1)
-        z_j = F.normalize(z_j, dim=-1)
+        z_j_samples = [F.normalize(z_j, dim=-1) for z_j in z_j_samples]
         
-        # Create similarity matrix
-        similarity_matrix = torch.matmul(z_i, z_j.T) / self.temperature
+        batch_size = z_i.size(0)
+
+        # Compute similarities for positive pairs
+        pos_similarities = [torch.matmul(z_i, z_j.T) / self.temperature for z_j in z_j_samples]
         
-        # Create positive and negative labels
-        positive_labels = torch.arange(z_i.size(0)).cuda()
-        
-        # Compute loss (contrastive loss for positive and negative pairs)
-        loss = F.cross_entropy(similarity_matrix, positive_labels)
+        # Average positive similarities across multiple augmented views
+        pos_similarity_matrix = torch.stack(pos_similarities).mean(dim=0)
+
+        # Generate labels (positive pairs are along the diagonal)
+        positive_labels = torch.arange(batch_size).cuda()
+
+        # Contrastive loss (using cross entropy)
+        loss = F.cross_entropy(pos_similarity_matrix, positive_labels)
         return loss
 
-# Custom Trainer for Contrastive Learning
-class ContrastiveTrainer(Trainer):
-    def __init__(self, contrastive_temperature, *args, **kwargs):
+# Custom Trainer for N-sample Contrastive Learning
+class NSampleContrastiveTrainer(Trainer):
+    def __init__(self, contrastive_temperature, n_samples, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.contrastive_temperature = contrastive_temperature
+        self.n_samples = n_samples  # number of positive augmentations
 
     def compute_loss(self, model, inputs, return_outputs=False):
         labels = inputs.pop("labels")
         outputs = model(**inputs)
         logits = outputs.logits
         
-        # Get augmented views for contrastive learning (e.g., different token order, masking, or dropout)
+        # Get augmented views for contrastive learning (multiple augmentations for each sample)
         z_i = logits  # Original token embeddings
-        z_j = self.get_augmented_views(logits)  # Augmented token embeddings
+        z_j_samples = [self.get_augmented_views(logits) for _ in range(self.n_samples)]  # Augmented token embeddings
         
         # Average the embeddings over the sequence dimension (to get (batch_size, hidden_dim))
         z_i = z_i.mean(dim=1)
-        z_j = z_j.mean(dim=1)
+        z_j_samples = [z_j.mean(dim=1) for z_j in z_j_samples]
 
-        # Compute contrastive loss
-        contrastive_loss_fn = ContrastiveLoss(temperature=self.contrastive_temperature)
-        contrastive_loss = contrastive_loss_fn(z_i, z_j)
+        # Compute contrastive loss for n-sample contrastive learning
+        contrastive_loss_fn = NSampleContrastiveLoss(temperature=self.contrastive_temperature, num_samples=self.n_samples)
+        contrastive_loss = contrastive_loss_fn(z_i, z_j_samples)
 
         # Compute the language modeling loss
         lm_loss = F.cross_entropy(logits.view(-1, logits.size(-1)), labels.view(-1))
@@ -72,6 +79,7 @@ class ContrastiveTrainer(Trainer):
 
     def get_augmented_views(self, logits):
         # Implement your augmentation here (e.g., dropout, masking, etc.)
+        # This is a simple example applying random dropout
         return F.dropout(logits, p=0.1, training=True)  # Augment logits with dropout
 
 
@@ -94,8 +102,9 @@ def grid_search_temperature(train_dataset, tokenizer, model, config, temperature
             fp16=config['training']['fp16'],
         )
 
-        trainer = ContrastiveTrainer(
+        trainer = NSampleContrastiveTrainer(
             contrastive_temperature=temp,
+            n_samples=5,  # Set n-sample augmentations during grid search
             model=model,
             args=training_args,
             data_collator=DataCollatorForLanguageModeling(tokenizer=tokenizer, mlm=False),
@@ -192,7 +201,7 @@ if __name__ == "__main__":
     print(f"Best contrastive temperature: {best_temperature}")
 
     # Full training with the best temperature
-    output_dir = Path(config['logging']['output_dir']) / (config['model']['name'] + "_contrastive-pairwise")
+    output_dir = Path(config['logging']['output_dir']) / (config['model']['name'] + "_contrastive_nsample")
     accumulation_steps = config['training']['gradient_accumulation_steps']
     per_device_bsz = (config['training']['batch_size'] * 2) // accumulation_steps  # Increased batch size
 
@@ -215,8 +224,9 @@ if __name__ == "__main__":
         resume_from_checkpoint=args.resume_from_checkpoint  # Resume from checkpoint if provided
     )
 
-    trainer = ContrastiveTrainer(
+    trainer = NSampleContrastiveTrainer(
         contrastive_temperature=best_temperature,
+        n_samples=5,  # Number of positive augmentations in full training
         model=model,
         args=training_args,
         data_collator=DataCollatorForLanguageModeling(tokenizer=tokenizer, mlm=False),
