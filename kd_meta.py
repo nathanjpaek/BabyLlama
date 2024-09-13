@@ -111,7 +111,6 @@ class MAMLTrainingArguments(TrainingArguments):
         # Pass other arguments to the parent class
         super().__init__(*args, **kwargs)
 
-
 class MAMLTrainer(Trainer):
     def __init__(self, *args, teacher_models=None, task_datasets=None, **kwargs):
         super().__init__(*args, **kwargs)
@@ -136,7 +135,6 @@ class MAMLTrainer(Trainer):
             if step >= self.args.maml_inner_steps:
                 break
 
-            # Handle cases where batch is a tuple or tensor (unpack manually)
             if isinstance(batch, dict):
                 inputs = {key: value.to(self.model.device) for key, value in batch.items()}
             elif isinstance(batch, (tuple, list)):
@@ -149,9 +147,8 @@ class MAMLTrainer(Trainer):
                 inputs = {"input_ids": batch.to(self.model.device)}
 
             if "labels" not in inputs:
-                inputs["labels"] = inputs["input_ids"].clone()  # Add labels if missing
+                inputs["labels"] = inputs["input_ids"].clone()
 
-            # Forward pass with autocast for mixed precision
             with autocast():
                 outputs_student = adapted_model(**inputs)
                 student_loss = outputs_student.loss
@@ -173,24 +170,11 @@ class MAMLTrainer(Trainer):
     def training_step(self, model: nn.Module, inputs: Dict[str, Union[torch.Tensor, Any]]) -> torch.Tensor:
         """
         Perform a training step on a batch of inputs.
-
-        Subclass and override to inject custom behavior.
-
-        Args:
-            model (`nn.Module`):
-                The model to train.
-            inputs (`Dict[str, Union[torch.Tensor, Any]]`):
-                The inputs and targets of the model.
-
-                The dictionary will be unpacked before being fed to the model. Most models expect the targets under the
-                argument `labels`. Check your model's documentation for all accepted arguments.
-
-        Return:
-            `torch.Tensor`: The tensor with training loss on this batch.
         """
         model.train()
         inputs = self._prepare_inputs(inputs)
 
+        # Compute loss with autocast for mixed precision
         with autocast():
             loss = self.compute_loss(model, inputs)
 
@@ -198,15 +182,31 @@ class MAMLTrainer(Trainer):
             loss = loss.mean()  # mean() to average on multi-gpu parallel training
 
         if self.args.gradient_accumulation_steps > 1 and not self.deepspeed:
-            # deepspeed handles loss scaling by gradient_accumulation_steps in its `backward`
             loss = loss / self.args.gradient_accumulation_steps
 
+        # Backpropagation with scaled gradients
         self.scaler.scale(loss).backward()
 
         return loss.detach()
 
-    def train(self):
-        return super().train(resume_from_checkpoint=None, trial=None)
+    def train(self, resume_from_checkpoint=None, trial=None):
+        # Ensure that scaler is initialized for every training session
+        return super().train(resume_from_checkpoint=resume_from_checkpoint, trial=trial)
+
+    def optimizer_step(self, model, optimizer, scheduler):
+        # Unscale the gradients before calling `clip_grad_norm_`
+        self.scaler.unscale_(optimizer)
+
+        # Clip the gradients if necessary
+        if self.args.max_grad_norm is not None:
+            torch.nn.utils.clip_grad_norm_(model.parameters(), self.args.max_grad_norm)
+
+        # Perform optimizer step using the scaler
+        self.scaler.step(optimizer)
+        self.scaler.update()
+
+        # Update the learning rate
+        scheduler.step()
 
 # ... [rest of the code remains unchanged] ...
 
