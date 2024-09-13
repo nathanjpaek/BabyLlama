@@ -11,6 +11,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.cuda.amp import autocast, GradScaler
+from typing import Dict, Union, Any
 
 from torch.utils.data import Subset, ConcatDataset
 from random import sample
