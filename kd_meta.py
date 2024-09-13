@@ -53,10 +53,15 @@ task_dataset_paths = {
     "switchboard": PATH / "data/babylm_10M_clean_2/switchboard.train",
 }
 
+# Define the tokenized directory
+tokenized_dir = PATH / "data/babylm_10M_clean_2/tokenized"
+tokenized_dir.mkdir(parents=True, exist_ok=True)  # Ensure it exists
+
 # Load each dataset into separate tasks
 task_datasets = {}
 for task_name, dataset_path in task_dataset_paths.items():
-    task_datasets[task_name] = BabylmDataset(dataset_path, SEQ_LENGTH, tokenizer=tokenizer, random_chunk=True)
+    tokenized_file_path = tokenized_dir / f"tokenized_{task_name}.pt"  # Save tokenized data here
+    task_datasets[task_name] = BabylmDataset(dataset_path, SEQ_LENGTH, tokenizer=tokenizer, tokenized_file=tokenized_file_path, random_chunk=True)
 
 # For evaluation, load the evaluation dataset as usual
 full_eval_dataset = BabylmDataset(PATH / "data/babylm_dev_clean", SEQ_LENGTH, tokenizer=tokenizer, offset=0)
