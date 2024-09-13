@@ -144,7 +144,9 @@ class MAMLTrainer(Trainer):
         return adapted_model
 
     def compute_loss(self, model, inputs, return_outputs=False):
-        task_name = self.task_datasets[torch.randint(0, len(self.task_datasets), (1,)).item()]
+        task_name = sample(list(self.task_datasets.keys()), 1)[0]
+        task_dataset = self.task_datasets[task_name]
+
         task_dataset = self.task_datasets[task_name]
         adapted_student = self.inner_loop(model, task_dataset)
 
