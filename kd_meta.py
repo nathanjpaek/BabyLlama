@@ -104,6 +104,7 @@ class MAMLTrainingArguments(TrainingArguments):
         self.maml_inner_lr = maml_inner_lr
         self.maml_inner_steps = maml_inner_steps
         super().__init__(*args, **kwargs)
+
 class MAMLTrainer(Trainer):
     def __init__(self, *args, teacher_models=None, task_datasets=None, **kwargs):
         super().__init__(*args, **kwargs)
@@ -127,8 +128,19 @@ class MAMLTrainer(Trainer):
             if step >= self.args.maml_inner_steps:
                 break
 
-            # Ensure the batch is unpacked into expected inputs (input_ids, attention_mask, etc.)
-            inputs = {key: value.to(self.model.device) for key, value in batch.items()}
+            # Handle cases where batch is a tuple or tensor (unpack manually)
+            if isinstance(batch, dict):
+                inputs = {key: value.to(self.model.device) for key, value in batch.items()}
+            elif isinstance(batch, (tuple, list)):
+                # Assuming batch contains (input_ids, attention_mask, labels) or similar
+                inputs = {
+                    "input_ids": batch[0].to(self.model.device),
+                    "attention_mask": batch[1].to(self.model.device),
+                    "labels": batch[2].to(self.model.device) if len(batch) > 2 else None
+                }
+            else:
+                # If it's a tensor, just pass it as input_ids
+                inputs = {"input_ids": batch.to(self.model.device)}
 
             # Forward pass for the adapted model
             outputs_student = adapted_model(**inputs)
