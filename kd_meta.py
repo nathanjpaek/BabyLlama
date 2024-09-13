@@ -104,7 +104,6 @@ class MAMLTrainingArguments(TrainingArguments):
         self.maml_inner_lr = maml_inner_lr
         self.maml_inner_steps = maml_inner_steps
         super().__init__(*args, **kwargs)
-        
 class MAMLTrainer(Trainer):
     def __init__(self, *args, teacher_models=None, task_datasets=None, **kwargs):
         super().__init__(*args, **kwargs)
@@ -118,7 +117,6 @@ class MAMLTrainer(Trainer):
         """
         Inner loop for MAML: Adapt model parameters for a specific task.
         """
-        # Create a new model instance using the same configuration as the student model
         adapted_model = LlamaForCausalLM(model.config).to(self.model.device)
         adapted_model.load_state_dict(model.state_dict())  # Copy weights from the original model
 
@@ -128,7 +126,12 @@ class MAMLTrainer(Trainer):
         for step, batch in enumerate(task_dataloader):
             if step >= self.args.maml_inner_steps:
                 break
-            outputs_student = adapted_model(**batch)
+
+            # Ensure the batch is unpacked into expected inputs (input_ids, attention_mask, etc.)
+            inputs = {key: value.to(self.model.device) for key, value in batch.items()}
+
+            # Forward pass for the adapted model
+            outputs_student = adapted_model(**inputs)
             student_loss = outputs_student.loss
             inner_optimizer.zero_grad()
             student_loss.backward()
