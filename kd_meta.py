@@ -10,6 +10,8 @@ from transformers import (
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.cuda.amp import autocast, GradScaler
+
 from torch.utils.data import Subset, ConcatDataset
 from random import sample
 from pathlib import Path
@@ -105,6 +107,7 @@ class MAMLTrainingArguments(TrainingArguments):
         self.maml_inner_steps = maml_inner_steps
         super().__init__(*args, **kwargs)
 
+
 class MAMLTrainer(Trainer):
     def __init__(self, *args, teacher_models=None, task_datasets=None, **kwargs):
         super().__init__(*args, **kwargs)
@@ -113,6 +116,7 @@ class MAMLTrainer(Trainer):
         for teacher in self.teachers:
             self._move_model_to_device(teacher, self.model.device)
             teacher.eval()
+        self.scaler = GradScaler()  # Initialize the scaler for mixed precision
 
     def inner_loop(self, model, task_dataset):
         """
@@ -132,32 +136,33 @@ class MAMLTrainer(Trainer):
             if isinstance(batch, dict):
                 inputs = {key: value.to(self.model.device) for key, value in batch.items()}
             elif isinstance(batch, (tuple, list)):
-                # Assuming batch contains (input_ids, attention_mask, labels) or similar
                 inputs = {
                     "input_ids": batch[0].to(self.model.device),
                     "attention_mask": batch[1].to(self.model.device),
                     "labels": batch[2].to(self.model.device) if len(batch) > 2 else None
                 }
             else:
-                # If it's a tensor, just pass it as input_ids
                 inputs = {"input_ids": batch.to(self.model.device)}
 
-            # Ensure 'labels' are included in inputs; otherwise, loss won't be computed
             if "labels" not in inputs:
-                inputs["labels"] = inputs["input_ids"].clone()  # Or create labels based on your task
+                inputs["labels"] = inputs["input_ids"].clone()  # Add labels if missing
 
-            # Forward pass for the adapted model
-            outputs_student = adapted_model(**inputs)
-
-            # Ensure that the model outputs a loss
-            student_loss = outputs_student.loss
+            # Forward pass with autocast for mixed precision
+            with autocast():
+                outputs_student = adapted_model(**inputs)
+                student_loss = outputs_student.loss
 
             if student_loss is None:
                 raise ValueError("Model did not return a loss. Ensure that 'labels' are provided in the inputs.")
 
             inner_optimizer.zero_grad()
-            student_loss.backward()
-            inner_optimizer.step()
+
+            # Backpropagation with scaled gradients
+            self.scaler.scale(student_loss).backward()
+
+            # Step optimizer with scaled gradients
+            self.scaler.step(inner_optimizer)
+            self.scaler.update()
 
         return adapted_model
 
