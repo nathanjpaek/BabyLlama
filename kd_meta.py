@@ -134,7 +134,10 @@ class MAMLTrainer(Trainer):
             if step >= self.args.maml_inner_steps:
                 break
 
+            # Ensure batch is a dictionary
             batch = self._prepare_inputs(batch)
+
+            # Forward pass
             outputs = adapted_model(**batch)
             loss = outputs.loss
             loss.backward()
@@ -142,6 +145,7 @@ class MAMLTrainer(Trainer):
             inner_optimizer.zero_grad()
 
         return adapted_model
+
 
     def compute_loss(self, model, inputs, return_outputs=False):
         task_name = sample(list(self.task_datasets.keys()), 1)[0]
