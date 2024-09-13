@@ -23,39 +23,26 @@ class BabylmDataset(Dataset):
         self.tokenizer = tokenizer
         self.random_chunk = random_chunk
 
-        tokenizer_name = tokenizer.__class__.__name__
+        data = []
 
-        # Define the tokenized file path
-        tokenized_file = Path(os.path.join(data_dir, f"tokenized_{tokenizer_name}_{tokenizer.vocab_size}.pt"))
-
-        if tokenized_file.exists():
-            print(f"Loading data from {tokenized_file}")
-            self.data = torch.load(tokenized_file)
+        if single_file:
+            # Handle case where `data_dir` is actually a single .train file
+            text = Path(data_dir).read_text(encoding="utf-8")
+            encoded = self.tokenizer.encode(text)
+            print(f"🔥 {data_dir}, len: {len(encoded)}")
+            data.extend(encoded)
         else:
-            data = []
+            # Handle case where `data_dir` is a directory containing multiple files
+            src_files = [str(f) for f in Path(data_dir).glob("**/*")
+                         if f.is_file() and not f.name.endswith(".DS_Store") and f.suffix in [".train", ".dev"]]
 
-            if single_file:
-                # Handle case where `data_dir` is actually a single .train file
-                text = Path(data_dir).read_text(encoding="utf-8")
+            for src_file in src_files:
+                text = Path(src_file).read_text(encoding="utf-8")
                 encoded = self.tokenizer.encode(text)
-                print(f"🔥 {data_dir}, len: {len(encoded)}")
+                print(f"🔥 {src_file}, len: {len(encoded)}")
                 data.extend(encoded)
-            else:
-                # Handle case where `data_dir` is a directory containing multiple files
-                src_files = [str(f) for f in Path(data_dir).glob("**/*")
-                             if f.is_file() and not f.name.endswith(".DS_Store") and f.suffix in [".train", ".dev"]]
 
-                for src_file in src_files:
-                    text = Path(src_file).read_text(encoding="utf-8")
-                    encoded = self.tokenizer.encode(text)
-                    print(f"🔥 {src_file}, len: {len(encoded)}")
-                    data.extend(encoded)
-
-            self.data = torch.tensor(data)
-
-            # Save tokenized data
-            print(f"Saving data to {tokenized_file}")
-            torch.save(self.data, tokenized_file)
+        self.data = torch.tensor(data)
 
     def __len__(self):
         if self.random_chunk:
