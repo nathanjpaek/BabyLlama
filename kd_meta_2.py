@@ -132,6 +132,9 @@ class MAMLTrainer(Trainer):
 
         return (total_loss, outputs_student) if return_outputs else total_loss
 
+# Add this at the top of your script to ensure wandb_log is defined
+wandb_log = True  # or False if you don't want to log to wandb
+
 # Initialize wandb if needed
 if wandb_log:
     wandb.login()
