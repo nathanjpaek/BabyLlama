@@ -100,14 +100,15 @@ data_collator = DataCollatorForLanguageModeling(
 
 # MAML Trainer implementation
 class MAMLTrainingArguments(TrainingArguments):
-    def __init__(self, *args, teacher_models=None, task_datasets=None, **kwargs):
+    def __init__(self, *args, alpha=0.5, temperature=2.0, maml_inner_lr=1e-3, maml_inner_steps=1, **kwargs):
+        # Store these extra arguments separately
+        self.alpha = alpha
+        self.temperature = temperature
+        self.maml_inner_lr = maml_inner_lr
+        self.maml_inner_steps = maml_inner_steps
+        
+        # Pass other arguments to the parent class
         super().__init__(*args, **kwargs)
-        self.teachers = teacher_models
-        self.task_datasets = task_datasets
-        for teacher in self.teachers:
-            self._move_model_to_device(teacher, self.model.device)
-            teacher.eval()
-        self.scaler = GradScaler() 
 
 
 class MAMLTrainer(Trainer):
