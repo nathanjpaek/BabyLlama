@@ -105,14 +105,32 @@ class MAMLTrainer(Trainer):
         for step, batch in enumerate(task_dataloader):
             if step >= self.maml_inner_steps:  # Use self.maml_inner_steps here
                 break
-            batch = self._prepare_inputs(batch)
-            outputs = adapted_model(**batch)
+
+            # Ensure batch is a dictionary and contains the necessary inputs
+            if isinstance(batch, dict):
+                inputs = {key: value.to(self.args.device) for key, value in batch.items()}
+            elif isinstance(batch, (tuple, list)):
+                inputs = {
+                    "input_ids": batch[0].to(self.args.device),
+                    "attention_mask": batch[1].to(self.args.device),
+                    "labels": batch[2].to(self.args.device) if len(batch) > 2 else None
+                }
+            else:
+                inputs = {"input_ids": batch.to(self.args.device)}
+
+            # Ensure that "labels" are provided for computing the loss
+            if "labels" not in inputs:
+                inputs["labels"] = inputs["input_ids"].clone()
+
+            # Forward pass
+            outputs = adapted_model(**inputs)
             loss = outputs.loss
             loss.backward()
             inner_optimizer.step()
             inner_optimizer.zero_grad()
 
         return adapted_model
+
 
     def compute_loss(self, model, inputs, return_outputs=False):
         task_name = sample(list(self.task_datasets.keys()), 1)[0]
