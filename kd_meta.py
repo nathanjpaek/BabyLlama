@@ -119,13 +119,12 @@ class MAMLTrainer(Trainer):
         for teacher in self.teachers:
             self._move_model_to_device(teacher, self.model.device)
             teacher.eval()
-        self.scaler = GradScaler()  # Initialize the scaler for mixed precision
 
     def inner_loop(self, model, task_dataset):
         """
         Inner loop for MAML: Adapt model parameters for a specific task.
         """
-        adapted_model = LlamaForCausalLM(model.config).to(self.model.device)
+        adapted_model = type(model)(model.config).to(self.args.device)
         adapted_model.load_state_dict(model.state_dict())  # Copy weights from the original model
 
         inner_optimizer = torch.optim.SGD(adapted_model.parameters(), lr=self.args.maml_inner_lr)
@@ -135,37 +134,42 @@ class MAMLTrainer(Trainer):
             if step >= self.args.maml_inner_steps:
                 break
 
-            if isinstance(batch, dict):
-                inputs = {key: value.to(self.model.device) for key, value in batch.items()}
-            elif isinstance(batch, (tuple, list)):
-                inputs = {
-                    "input_ids": batch[0].to(self.model.device),
-                    "attention_mask": batch[1].to(self.model.device),
-                    "labels": batch[2].to(self.model.device) if len(batch) > 2 else None
-                }
-            else:
-                inputs = {"input_ids": batch.to(self.model.device)}
-
-            if "labels" not in inputs:
-                inputs["labels"] = inputs["input_ids"].clone()
-
-            with autocast():
-                outputs_student = adapted_model(**inputs)
-                student_loss = outputs_student.loss
-
-            if student_loss is None:
-                raise ValueError("Model did not return a loss. Ensure that 'labels' are provided in the inputs.")
-
+            batch = self._prepare_inputs(batch)
+            outputs = adapted_model(**batch)
+            loss = outputs.loss
+            loss.backward()
+            inner_optimizer.step()
             inner_optimizer.zero_grad()
 
-            # Backpropagation with scaled gradients
-            self.scaler.scale(student_loss).backward()
-
-            # Step optimizer with scaled gradients
-            self.scaler.step(inner_optimizer)
-            self.scaler.update()
-
         return adapted_model
+
+    def compute_loss(self, model, inputs, return_outputs=False):
+        task_name = self.task_datasets[torch.randint(0, len(self.task_datasets), (1,)).item()]
+        task_dataset = self.task_datasets[task_name]
+        adapted_student = self.inner_loop(model, task_dataset)
+
+        outputs_student = adapted_student(**inputs)
+        student_loss = outputs_student.loss
+
+        with torch.no_grad():
+            all_teacher_logits = []
+            for teacher in self.teachers:
+                outputs_teacher = teacher(**inputs)
+                all_teacher_logits.append(outputs_teacher.logits)
+            avg_teacher_logits = torch.stack(all_teacher_logits).mean(dim=0)
+
+        # Distillation loss
+        loss_function = nn.KLDivLoss(reduction="batchmean")
+        loss_logits = (
+            loss_function(
+                F.log_softmax(outputs_student.logits / self.args.temperature, dim=-1),
+                F.softmax(avg_teacher_logits / self.args.temperature, dim=-1),
+            ) * (self.args.temperature ** 2)
+        )
+
+        loss = self.args.alpha * student_loss + (1.0 - self.args.alpha) * loss_logits
+
+        return (loss, outputs_student) if return_outputs else loss
 
     def training_step(self, model: nn.Module, inputs: Dict[str, Union[torch.Tensor, Any]]) -> torch.Tensor:
         """
@@ -174,9 +178,7 @@ class MAMLTrainer(Trainer):
         model.train()
         inputs = self._prepare_inputs(inputs)
 
-        # Compute loss with autocast for mixed precision
-        with autocast():
-            loss = self.compute_loss(model, inputs)
+        loss = self.compute_loss(model, inputs)
 
         if self.args.n_gpu > 1:
             loss = loss.mean()  # mean() to average on multi-gpu parallel training
@@ -184,11 +186,90 @@ class MAMLTrainer(Trainer):
         if self.args.gradient_accumulation_steps > 1 and not self.deepspeed:
             loss = loss / self.args.gradient_accumulation_steps
 
-        # Scale the loss and compute gradients
-        scaled_loss = self.scaler.scale(loss)
-        scaled_loss.backward()
+        if self.use_amp:
+            self.scaler.scale(loss).backward()
+        else:
+            loss.backward()
 
         return loss.detach()
+
+    # def __init__(self, *args, teacher_models=None, task_datasets=None, **kwargs):
+    #     super().__init__(*args, **kwargs)
+    #     self.teachers = teacher_models
+    #     self.task_datasets = task_datasets
+    #     for teacher in self.teachers:
+    #         self._move_model_to_device(teacher, self.model.device)
+    #         teacher.eval()
+    #     self.scaler = GradScaler()  # Initialize the scaler for mixed precision
+
+    # def inner_loop(self, model, task_dataset):
+    #     """
+    #     Inner loop for MAML: Adapt model parameters for a specific task.
+    #     """
+    #     adapted_model = LlamaForCausalLM(model.config).to(self.model.device)
+    #     adapted_model.load_state_dict(model.state_dict())  # Copy weights from the original model
+
+    #     inner_optimizer = torch.optim.SGD(adapted_model.parameters(), lr=self.args.maml_inner_lr)
+    #     task_dataloader = torch.utils.data.DataLoader(task_dataset, batch_size=self.args.per_device_train_batch_size)
+
+    #     for step, batch in enumerate(task_dataloader):
+    #         if step >= self.args.maml_inner_steps:
+    #             break
+
+    #         if isinstance(batch, dict):
+    #             inputs = {key: value.to(self.model.device) for key, value in batch.items()}
+    #         elif isinstance(batch, (tuple, list)):
+    #             inputs = {
+    #                 "input_ids": batch[0].to(self.model.device),
+    #                 "attention_mask": batch[1].to(self.model.device),
+    #                 "labels": batch[2].to(self.model.device) if len(batch) > 2 else None
+    #             }
+    #         else:
+    #             inputs = {"input_ids": batch.to(self.model.device)}
+
+    #         if "labels" not in inputs:
+    #             inputs["labels"] = inputs["input_ids"].clone()
+
+    #         with autocast():
+    #             outputs_student = adapted_model(**inputs)
+    #             student_loss = outputs_student.loss
+
+    #         if student_loss is None:
+    #             raise ValueError("Model did not return a loss. Ensure that 'labels' are provided in the inputs.")
+
+    #         inner_optimizer.zero_grad()
+
+    #         # Backpropagation with scaled gradients
+    #         self.scaler.scale(student_loss).backward()
+
+    #         # Step optimizer with scaled gradients
+    #         self.scaler.step(inner_optimizer)
+    #         self.scaler.update()
+
+    #     return adapted_model
+
+    # def training_step(self, model: nn.Module, inputs: Dict[str, Union[torch.Tensor, Any]]) -> torch.Tensor:
+    #     """
+    #     Perform a training step on a batch of inputs.
+    #     """
+    #     model.train()
+    #     inputs = self._prepare_inputs(inputs)
+
+    #     # Compute loss with autocast for mixed precision
+    #     with autocast():
+    #         loss = self.compute_loss(model, inputs)
+
+    #     if self.args.n_gpu > 1:
+    #         loss = loss.mean()  # mean() to average on multi-gpu parallel training
+
+    #     if self.args.gradient_accumulation_steps > 1 and not self.deepspeed:
+    #         loss = loss / self.args.gradient_accumulation_steps
+
+    #     # Scale the loss and compute gradients
+    #     scaled_loss = self.scaler.scale(loss)
+    #     scaled_loss.backward()
+
+    #     return loss.detach()
 
 
     def train(self, resume_from_checkpoint=None, trial=None):
@@ -212,44 +293,89 @@ class MAMLTrainer(Trainer):
         # Update the learning rate
         self.lr_scheduler.step()
 
-    def compute_loss(self, model, inputs, return_outputs=False):
-        task_name = sample(list(self.task_datasets.keys()), 1)[0]
-        task_dataset = self.task_datasets[task_name]
-        adapted_student = self.inner_loop(model, task_dataset)
+    # def compute_loss(self, model, inputs, return_outputs=False):
+    #     task_name = sample(list(self.task_datasets.keys()), 1)[0]
+    #     task_dataset = self.task_datasets[task_name]
+    #     adapted_student = self.inner_loop(model, task_dataset)
 
-        # Apply autocast for mixed precision
-        with autocast():
-            outputs_student = adapted_student(**inputs)
-            student_loss = outputs_student.loss
+    #     # Apply autocast for mixed precision
+    #     with autocast():
+    #         outputs_student = adapted_student(**inputs)
+    #         student_loss = outputs_student.loss
 
-        if student_loss is None:
-            raise ValueError("Model did not return a loss. Ensure that 'labels' are provided in the inputs.")
+    #     if student_loss is None:
+    #         raise ValueError("Model did not return a loss. Ensure that 'labels' are provided in the inputs.")
 
-        with torch.no_grad():
-            all_teacher_logits = []
-            for teacher in self.teachers:
-                outputs_teacher = teacher(**inputs)
-                all_teacher_logits.append(outputs_teacher.logits)
-            avg_teacher_logits = torch.stack(all_teacher_logits).mean(dim=0)
+    #     with torch.no_grad():
+    #         all_teacher_logits = []
+    #         for teacher in self.teachers:
+    #             outputs_teacher = teacher(**inputs)
+    #             all_teacher_logits.append(outputs_teacher.logits)
+    #         avg_teacher_logits = torch.stack(all_teacher_logits).mean(dim=0)
 
-        # Distillation loss
-        loss_function = nn.KLDivLoss(reduction="batchmean")
-        loss_logits = (
-            loss_function(
-                F.log_softmax(outputs_student.logits / self.args.temperature, dim=-1),
-                F.softmax(avg_teacher_logits / self.args.temperature, dim=-1),
-            ) * (self.args.temperature ** 2)
-        )
+    #     # Distillation loss
+    #     loss_function = nn.KLDivLoss(reduction="batchmean")
+    #     loss_logits = (
+    #         loss_function(
+    #             F.log_softmax(outputs_student.logits / self.args.temperature, dim=-1),
+    #             F.softmax(avg_teacher_logits / self.args.temperature, dim=-1),
+    #         ) * (self.args.temperature ** 2)
+    #     )
 
-        loss = self.args.alpha * student_loss + (1.0 - self.args.alpha) * loss_logits
-        return loss
+    #     loss = self.args.alpha * student_loss + (1.0 - self.args.alpha) * loss_logits
+    #     return loss
 
 # Initialize wandb if needed
 if wandb_log:
     wandb.login()
     wandb.init(project='babylm', name=MODEL_NAME)
 
-# Define the training arguments for MAML
+# # Define the training arguments for MAML
+# maml_training_args = MAMLTrainingArguments(
+#     output_dir=MODEL_OUTPUT,
+#     overwrite_output_dir=True,
+#     save_strategy="epoch",
+#     evaluation_strategy="epoch",
+#     num_train_epochs=6,
+#     gradient_accumulation_steps=1,
+#     per_device_train_batch_size=BATCH_SIZE,
+#     save_total_limit=1,
+#     report_to="wandb",
+#     warmup_steps=200,
+#     lr_scheduler_type="cosine",
+#     learning_rate=LR,
+#     logging_steps=20,
+#     fp16=True,
+#     load_best_model_at_end=True,
+#     metric_for_best_model="eval_loss",
+#     weight_decay=0.1,
+#     alpha=ALPHA,
+#     temperature=TEMPERATURE,
+#     maml_inner_lr=1e-3,
+#     maml_inner_steps=1,
+# )
+
+# # Combine all task datasets into one dataset for training
+# train_dataset = ConcatDataset(list(task_datasets.values()))
+
+# maml_trainer = MAMLTrainer(
+#     model=student,
+#     args=maml_training_args,
+#     teacher_models=teachers,
+#     task_datasets=task_datasets,
+#     train_dataset=train_dataset,
+#     data_collator=data_collator,
+#     eval_dataset=eval_dataset,
+# )
+
+# # Train the model using meta-learning
+# maml_trainer.train()
+
+# # Save the trained model and tokenizer
+# maml_trainer.save_model(MODEL_OUTPUT)
+# tokenizer.save_pretrained(MODEL_OUTPUT)
+
+
 maml_training_args = MAMLTrainingArguments(
     output_dir=MODEL_OUTPUT,
     overwrite_output_dir=True,
@@ -264,7 +390,7 @@ maml_training_args = MAMLTrainingArguments(
     lr_scheduler_type="cosine",
     learning_rate=LR,
     logging_steps=20,
-    fp16=True,
+    fp16=True,  # Enable mixed precision training
     load_best_model_at_end=True,
     metric_for_best_model="eval_loss",
     weight_decay=0.1,
