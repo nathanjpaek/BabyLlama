@@ -139,9 +139,17 @@ wandb_log = True  # or False if you don't want to log to wandb
 if wandb_log:
     wandb.login()
     wandb.init(project='babylm', name=MODEL_NAME)
+# Custom MAML training arguments class
+class MAMLTrainingArguments(TrainingArguments):
+    def __init__(self, *args, maml_inner_lr=1e-3, maml_inner_steps=1, alpha=0.5, temperature=2.0, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.maml_inner_lr = maml_inner_lr
+        self.maml_inner_steps = maml_inner_steps
+        self.alpha = alpha
+        self.temperature = temperature
 
-# Training arguments
-maml_training_args = TrainingArguments(
+# Define the training arguments for MAML
+maml_training_args = MAMLTrainingArguments(
     output_dir=MODEL_OUTPUT,
     overwrite_output_dir=True,
     save_strategy="epoch",
@@ -158,6 +166,10 @@ maml_training_args = TrainingArguments(
     load_best_model_at_end=True,
     metric_for_best_model="eval_loss",
     weight_decay=0.1,
+    alpha=ALPHA,
+    temperature=TEMPERATURE,
+    maml_inner_lr=1e-3,  # This is the missing attribute
+    maml_inner_steps=1,
 )
 
 # Combine datasets and initialize trainer
