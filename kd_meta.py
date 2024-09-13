@@ -57,12 +57,16 @@ task_dataset_paths = {
 # Define the tokenized directory
 tokenized_dir = PATH / "data/babylm_10M_clean_2/tokenized"
 tokenized_dir.mkdir(parents=True, exist_ok=True)  # Ensure it exists
-
 # Load each dataset into separate tasks
 task_datasets = {}
 for task_name, dataset_path in task_dataset_paths.items():
-    tokenized_file_path = tokenized_dir / f"tokenized_{task_name}.pt"  # Save tokenized data here
-    task_datasets[task_name] = BabylmDataset(str(tokenized_dir), SEQ_LENGTH, tokenizer=tokenizer, random_chunk=True)
+    # Load each dataset with the correct dataset_path, not tokenized_dir
+    task_datasets[task_name] = BabylmDataset(str(dataset_path), SEQ_LENGTH, tokenizer=tokenizer, random_chunk=True)
+
+# Check each task dataset for its length
+for task_name, dataset in task_datasets.items():
+    print(f"Task: {task_name}")
+    print(f"Length: {len(dataset)}")
 
 # For evaluation, load the evaluation dataset as usual
 full_eval_dataset = BabylmDataset(PATH / "data/babylm_dev_clean", SEQ_LENGTH, tokenizer=tokenizer, offset=0)
@@ -198,12 +202,6 @@ maml_training_args = MAMLTrainingArguments(
     maml_inner_lr=1e-3,  # Inner loop learning rate
     maml_inner_steps=1,   # Inner loop step count
 )
-
-# Check each task dataset for its length
-for task_name, dataset in task_datasets.items():
-    print(f"Task: {task_name}")
-    print(f"Length: {len(dataset)}")
-
 
 # Combine all task datasets into one dataset for training
 train_dataset = ConcatDataset(list(task_datasets.values()))
