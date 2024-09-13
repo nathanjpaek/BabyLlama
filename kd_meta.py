@@ -199,6 +199,11 @@ maml_training_args = MAMLTrainingArguments(
     maml_inner_steps=1,   # Inner loop step count
 )
 
+# Check each task dataset for its length
+for task_name, dataset in task_datasets.items():
+    print(f"Task: {task_name}, Length: {len(dataset)}")
+
+
 # Combine all task datasets into one dataset for training
 train_dataset = ConcatDataset(list(task_datasets.values()))
 
