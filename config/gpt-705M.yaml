@@ -18,9 +18,9 @@ model:
 
 training:
   lr: 2.5e-4
-  batch_size: 128
+  batch_size: 32
   num_epochs: 4
-  gradient_accumulation_steps: 16
+  gradient_accumulation_steps: 64
   warmup_steps: 300
   fp16: True
 
