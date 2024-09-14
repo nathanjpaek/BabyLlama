@@ -5,7 +5,8 @@ from transformers import (
 )
 from transformers import Trainer, TrainingArguments, DataCollatorForLanguageModeling
 from transformers import GPT2TokenizerFast
-from torch.utils.data import Subset, DataLoader
+from torch.utils.data import Subset, DataLoader, ConcatDataset
+
 from random import sample, seed
 import torch
 from torch import nn
