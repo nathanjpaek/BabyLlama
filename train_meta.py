@@ -143,8 +143,10 @@ class MAMLTrainer(Trainer):
                 inputs["labels"] = inputs["input_ids"].clone()
 
             # Forward pass
-            outputs = adapted_model(**inputs)
+            with torch.no_grad():  # Disable gradient tracking to save memory
+                outputs = adapted_model(**inputs)
             loss = outputs.loss
+
             loss.backward()
             inner_optimizer.step()
             inner_optimizer.zero_grad()
@@ -161,6 +163,9 @@ class MAMLTrainer(Trainer):
         outputs = adapted_model(**inputs)
         loss = outputs.loss
 
+        del adapted_model  # Clear the adapted model
+        torch.cuda.empty_cache()  # Free up any unused cached memory
+
         return (loss, outputs) if return_outputs else loss
 
 
@@ -174,6 +179,7 @@ class MAMLTrainingArguments(TrainingArguments):
 
 # Define the training arguments for MAML
 training_args = MAMLTrainingArguments(
+    fp16=True
     output_dir=config['logging']['output_dir'],
     overwrite_output_dir=True,
     save_strategy="epoch",
