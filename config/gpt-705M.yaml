@@ -1,6 +1,6 @@
 data:
   tokenizer_path: "./models/gpt-clean-16000.json"
-  train_path: "./data/babylm_10M_clean"
+  train_path: "./data/babylm_10M_clean_2"
   eval_path: "./data/babylm_dev_clean"
   seq_length: 128
   eval_samples: 8192
