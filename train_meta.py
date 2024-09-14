@@ -179,7 +179,7 @@ class MAMLTrainingArguments(TrainingArguments):
 
 # Define the training arguments for MAML
 training_args = MAMLTrainingArguments(
-    fp16=True
+    fp16=True,
     output_dir=config['logging']['output_dir'],
     overwrite_output_dir=True,
     save_strategy="epoch",
