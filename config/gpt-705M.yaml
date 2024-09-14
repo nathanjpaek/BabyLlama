@@ -7,7 +7,7 @@ data:
 
 model:
   type: "GPT2" # or "GPT2"
-  name: "GPT2-705M"
+  name: "GPT2-705M-Meta"
   hidden_size: 1536
   intermediate_size: 3072 # train.py uses default = 4 * hidden_size 
   n_layer: 24
