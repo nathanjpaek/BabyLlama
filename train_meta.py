@@ -143,8 +143,8 @@ class MAMLTrainer(Trainer):
                 inputs["labels"] = inputs["input_ids"].clone()
 
             # Forward pass
-            with torch.no_grad():  # Disable gradient tracking to save memory
-                outputs = adapted_model(**inputs)
+           # with torch.no_grad():  # Disable gradient tracking to save memory
+            outputs = adapted_model(**inputs)
             loss = outputs.loss
 
             loss.backward()
