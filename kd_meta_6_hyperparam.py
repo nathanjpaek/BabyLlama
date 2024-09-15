@@ -23,7 +23,7 @@ import subprocess
 LR = 2.5e-4
 BATCH_SIZE = 16  # Reduced batch size for faster training
 SEQ_LENGTH = 128
-TEMPERATURES = [1.0, 2.0]
+TEMPERATURES = [1.0, 1.5, 2.0]
 ALPHAS = [0.3, 0.5, 0.7]
 INNER_LRS = [1e-3, 1e-4]
 INNER_STEPS = [1, 3]
@@ -45,16 +45,24 @@ tokenizer.model_max_length = SEQ_LENGTH
 
 # Define paths for datasets
 task_dataset_paths = {
-    "childes": PATH / "data/babylm_10M_clean_2/childes.train",
+    "childes": PATH / "data/babylm_10M_clean/childes.train",
+    "bnc_spoken": PATH / "data/babylm_10M_clean/bnc_spoken.train",
+    "gutenberg": PATH / "data/babylm_10M_clean/gutenberg.train",
+    "open_subtitles": PATH / "data/babylm_10M_clean/open_subtitles.train",
+    "simple_wiki": PATH / "data/babylm_10M_clean/simple_wiki.train",
+    "switchboard": PATH / "data/babylm_10M_clean/switchboard.train",
 }
 
-# Load and reduce datasets
+# Load and reduce datasets (using 10% of each dataset)
 task_datasets = {}
 for task_name, dataset_path in task_dataset_paths.items():
     dataset = BabylmDataset(
         str(dataset_path), SEQ_LENGTH, tokenizer=tokenizer, random_chunk=True, single_file=True
     )
-    task_datasets[task_name] = Subset(dataset, range(1000))  # Use only 1000 samples per task
+    # Use 10% of the dataset
+    subset_size = int(0.1 * len(dataset))
+    subset_indices = sample(range(len(dataset)), subset_size)
+    task_datasets[task_name] = Subset(dataset, subset_indices)
 
 # Create evaluation dataset
 full_eval_dataset = BabylmDataset(PATH / "data/babylm_dev_clean", SEQ_LENGTH, tokenizer=tokenizer, offset=0)
@@ -133,6 +141,8 @@ class ReptileTrainer(Trainer):
         # Reptile meta-update
         meta_gradient = [p_s - p for p_s, p in zip(adapted_model.parameters(), model.parameters())]
         for p, g in zip(model.parameters(), meta_gradient):
+            if p.grad is not None:
+                p.grad.zero_()
             p.grad = g
         return (total_loss, outputs_student) if return_outputs else total_loss
 
