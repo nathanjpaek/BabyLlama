@@ -93,7 +93,7 @@ data_collator = DataCollatorForLanguageModeling(tokenizer=tokenizer, mlm=False)
 
 # Define the Reptile algorithm trainer
 class ReptileTrainer(Trainer):
-    def __init__(self, *args, teacher_models=None, task_datasets=None, inner_lr=1e-3, inner_steps=1, alpha=0.5, temperature=2.0, **kwargs):
+    def __init__(self, *args, teacher_models=None, task_datasets=None, inner_lr=1e-3, inner_steps=1, alpha=0.5, temperature=2.0, data_collator=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.teachers = teacher_models
         self.task_datasets = task_datasets
@@ -101,6 +101,7 @@ class ReptileTrainer(Trainer):
         self.inner_steps = inner_steps
         self.alpha = alpha
         self.temperature = temperature
+        self.data_collator = data_collator  # Store the data_collator
         for teacher in self.teachers:
             teacher.to(self.model.device)
             teacher.eval()
@@ -109,11 +110,18 @@ class ReptileTrainer(Trainer):
         adapted_model = type(model)(model.config).to(self.args.device)
         adapted_model.load_state_dict(model.state_dict())  # Copy weights from the original model
         inner_optimizer = torch.optim.SGD(adapted_model.parameters(), lr=self.inner_lr)
-        task_dataloader = DataLoader(task_dataset, batch_size=self.args.per_device_train_batch_size)
+        
+        # Use the data_collator in the DataLoader
+        task_dataloader = DataLoader(
+            task_dataset,
+            batch_size=self.args.per_device_train_batch_size,
+            collate_fn=self.data_collator  # Add collate_fn
+        )
     
         for step, batch in enumerate(task_dataloader):
             if step >= self.inner_steps:
                 break
+            # Ensure batch is correctly formatted
             inputs = {key: value.to(self.args.device) for key, value in batch.items()}
             outputs = adapted_model(**inputs)
             loss = outputs.loss
@@ -189,7 +197,7 @@ for temperature, alpha, inner_lr, inner_steps in hyperparameter_space:
         alpha=alpha,
         temperature=temperature,
         train_dataset=ConcatDataset(list(task_datasets.values())),
-        data_collator=data_collator,
+        data_collator=data_collator,  # Pass the data_collator here
     )
     # Train model
     trainer.train()
