@@ -41,8 +41,9 @@ PATH = Path("./")
 MODEL_BASE_NAME = 'Meta-Student-2'
 MODEL_OUTPUT_BASE = PATH / 'models' / MODEL_BASE_NAME
 
-original_dir = os.getcwd()
-eval_dir = original_dir / 'evaluation-pipeline-2024'
+original_dir = os.getcwd()  # Keep as string
+eval_dir = os.path.join(original_dir, 'evaluation-pipeline-2024')
+
 
 # Tokenizer setup
 tokenizer_path = PATH / "models/gpt-clean-16000.json"
