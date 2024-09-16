@@ -17,7 +17,7 @@ from random import sample
 import wandb
 import itertools
 import subprocess
-
+import os
 # Define constants and hyperparameter ranges
 ##########
 LR = 2.5e-4
@@ -34,6 +34,9 @@ EVAL_SAMPLES = 1024  # Reduced evaluation samples
 PATH = Path("./")
 MODEL_BASE_NAME = 'Meta-Student-2'
 MODEL_OUTPUT_BASE = PATH / 'models' / MODEL_BASE_NAME
+
+original_dir = os.getcwd()
+eval_dir = original_dir / 'evaluation-pipeline-2024'
 
 # Tokenizer setup
 tokenizer_path = PATH / "models/gpt-clean-16000.json"
@@ -209,16 +212,25 @@ for temperature, alpha, inner_lr, inner_steps in hyperparameter_space:
     # Run evaluation using lm_eval
     MODEL_PATH = str(MODEL_OUTPUT)
     MODEL_BASENAME = MODEL_OUTPUT.name
-    # Build command
-    eval_command = [
-        "python", "-m", "lm_eval", "--model", "hf",
-        "--model_args", f'pretrained={MODEL_PATH},backend="causal"',
-        "--tasks", "blimp_filtered,blimp_supplement",
-        "--device", "cuda:0" if torch.cuda.is_available() else "cpu",
-        "--batch_size", "1",
-        "--log_samples",
-        "--output_path", f"results/blimp/{MODEL_BASENAME}/blimp_results.json"
-    ]
-    # Run evaluation
-    print(f"Evaluating model {MODEL_BASENAME}")
-    subprocess.run(eval_command)
+    try:
+        # Change to the evaluation directory
+        os.chdir(eval_dir)
+
+        # Build command
+        eval_command = [
+            "python", "-m", "lm_eval", "--model", "hf",
+            "--model_args", f'pretrained={MODEL_PATH},backend="causal"',
+            "--tasks", "blimp_filtered,blimp_supplement",
+            "--device", "cuda:0" if torch.cuda.is_available() else "cpu",
+            "--batch_size", "1",
+            "--log_samples",
+            "--output_path", f"results/blimp/{MODEL_BASENAME}/blimp_results.json"
+        ]
+
+        # Run evaluation
+        print(f"Evaluating model {MODEL_BASENAME}")
+        subprocess.run(eval_command)
+    
+    finally:
+        # Change back to the original directory
+        os.chdir(original_dir)
