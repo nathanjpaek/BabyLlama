@@ -220,7 +220,7 @@ for temperature, alpha, inner_lr, inner_steps, weight_decay, lr_scheduler, grad_
     if wandb_log:
         wandb.finish()
     # Run evaluation using lm_eval
-    MODEL_PATH = str(MODEL_OUTPUT)
+    MODEL_PATH = "../" + str(MODEL_OUTPUT)
     MODEL_BASENAME = MODEL_OUTPUT.name
     try:
         # Change to the evaluation directory
