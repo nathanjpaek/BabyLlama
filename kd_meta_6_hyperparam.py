@@ -176,7 +176,7 @@ if wandb_log:
 for temperature, alpha, inner_lr, inner_steps, weight_decay, lr_scheduler, grad_acc_steps in hyperparameter_space:
     print(f"Training with temperature={temperature}, alpha={alpha}, inner_lr={inner_lr}, inner_steps={inner_steps}, weight_decay={weight_decay}, lr_scheduler={lr_scheduler}, grad_acc_steps={grad_acc_steps}")
     # Update model name
-    MODEL_NAME = f"{MODEL_BASE_NAME}_temp{temperature}_alpha{alpha}_ilr{inner_lr}_isteps{inner_steps}_wd{weight_decay}_lrsched{lr_scheduler}_gacc{grad_acc_steps}"
+    MODEL_NAME = f"{MODEL_BASE_NAME}_temp{temperature}_alpha{alpha}_ilr{inner_lr}_isteps{inner_steps}_wd{weight_decay}_lrsched{lr_scheduler}_gacc{grad_acc_steps}_p2"
     MODEL_OUTPUT = MODEL_OUTPUT_BASE / MODEL_NAME
     # Reset student model
     student = LlamaForCausalLM(config)
