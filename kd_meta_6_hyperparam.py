@@ -27,13 +27,13 @@ SEQ_LENGTH = 128
 TEMPERATURES = [1.0, 1.5, 2.0]
 ALPHAS = [0.3, 0.5, 0.7]
 INNER_LRS = [1e-3, 5e-4, 1e-4]
-INNER_STEPS = [1, 2, 3]
+INNER_STEPS = [2]
 EVAL_SAMPLES = 1024  # Reduced evaluation samples
 
 # Additional hyperparams for tuning
-WEIGHT_DECAYS = [0.01, 0.05, 0.1]
-LR_SCHEDULERS = ["linear", "cosine"]
-GRAD_ACCUMULATION_STEPS = [1, 2]
+WEIGHT_DECAYS = [0.05]
+LR_SCHEDULERS = ["linear"]
+GRAD_ACCUMULATION_STEPS = [1]
 ##########
 
 # Paths and model names
