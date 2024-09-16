@@ -18,6 +18,7 @@ import wandb
 import itertools
 import subprocess
 import os
+
 # Define constants and hyperparameter ranges
 ##########
 LR = 2.5e-4
@@ -25,9 +26,14 @@ BATCH_SIZE = 16  # Reduced batch size for faster training
 SEQ_LENGTH = 128
 TEMPERATURES = [1.0, 1.5, 2.0]
 ALPHAS = [0.3, 0.5, 0.7]
-INNER_LRS = [1e-3, 1e-4]
-INNER_STEPS = [1, 3]
+INNER_LRS = [1e-3, 5e-4, 1e-4]
+INNER_STEPS = [1, 2, 3]
 EVAL_SAMPLES = 1024  # Reduced evaluation samples
+
+# Additional hyperparams for tuning
+WEIGHT_DECAYS = [0.01, 0.05, 0.1]
+LR_SCHEDULERS = ["linear", "cosine"]
+GRAD_ACCUMULATION_STEPS = [1, 2]
 ##########
 
 # Paths and model names
@@ -158,7 +164,7 @@ class ReptileTrainer(Trainer):
         return (total_loss, outputs_student) if return_outputs else total_loss
 
 # Hyperparameter search
-hyperparameter_space = list(itertools.product(TEMPERATURES, ALPHAS, INNER_LRS, INNER_STEPS))
+hyperparameter_space = list(itertools.product(TEMPERATURES, ALPHAS, INNER_LRS, INNER_STEPS, WEIGHT_DECAYS, LR_SCHEDULERS, GRAD_ACCUMULATION_STEPS))
 
 # Initialize wandb if needed
 wandb_log = False  # Set to True if you want to use wandb
@@ -166,10 +172,10 @@ if wandb_log:
     wandb.login()
 
 # Loop over hyperparameter combinations
-for temperature, alpha, inner_lr, inner_steps in hyperparameter_space:
-    print(f"Training with temperature={temperature}, alpha={alpha}, inner_lr={inner_lr}, inner_steps={inner_steps}")
+for temperature, alpha, inner_lr, inner_steps, weight_decay, lr_scheduler, grad_acc_steps in hyperparameter_space:
+    print(f"Training with temperature={temperature}, alpha={alpha}, inner_lr={inner_lr}, inner_steps={inner_steps}, weight_decay={weight_decay}, lr_scheduler={lr_scheduler}, grad_acc_steps={grad_acc_steps}")
     # Update model name
-    MODEL_NAME = f"{MODEL_BASE_NAME}_temp{temperature}_alpha{alpha}_ilr{inner_lr}_isteps{inner_steps}"
+    MODEL_NAME = f"{MODEL_BASE_NAME}_temp{temperature}_alpha{alpha}_ilr{inner_lr}_isteps{inner_steps}_wd{weight_decay}_lrsched{lr_scheduler}_gacc{grad_acc_steps}"
     MODEL_OUTPUT = MODEL_OUTPUT_BASE / MODEL_NAME
     # Reset student model
     student = LlamaForCausalLM(config)
@@ -178,7 +184,7 @@ for temperature, alpha, inner_lr, inner_steps in hyperparameter_space:
     training_args = TrainingArguments(
         output_dir=MODEL_OUTPUT,
         overwrite_output_dir=True,
-        num_train_epochs=1,
+        num_train_epochs=2,  # Train for 2 epochs now
         per_device_train_batch_size=BATCH_SIZE,
         learning_rate=LR,
         logging_steps=20,
@@ -186,6 +192,9 @@ for temperature, alpha, inner_lr, inner_steps in hyperparameter_space:
         save_total_limit=1,
         report_to="wandb" if wandb_log else [],
         logging_dir='./logs',
+        weight_decay=weight_decay,  # Added weight_decay
+        lr_scheduler_type=lr_scheduler,  # Added learning rate scheduler
+        gradient_accumulation_steps=grad_acc_steps,  # Added gradient accumulation steps
     )
     if wandb_log:
         wandb.init(project='babylm', name=MODEL_NAME)
