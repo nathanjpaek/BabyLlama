@@ -1,7 +1,5 @@
 import torch
-from torch import nn
-from torch.utils.data import DataLoader, Subset, ConcatDataset
-import torch.nn.functional as F
+from torch.utils.data import DataLoader, ConcatDataset
 from transformers import (
     GPT2TokenizerFast,
     LlamaForCausalLM,
@@ -13,27 +11,15 @@ from transformers import (
 )
 from babylm_dataset import BabylmDataset  # Custom dataset class
 from pathlib import Path
-from random import sample
-import wandb
-import itertools
 import subprocess
 import os
 
 # Define constants and hyperparameter ranges
 ##########
 LR = 2.5e-4
-BATCH_SIZE = 16  # Reduced batch size for faster training
+BATCH_SIZE = 16  # Adjust if necessary
 SEQ_LENGTH = 128
-TEMPERATURES = [1.5, 2.0]
-ALPHAS = [0.5, 0.7]
-INNER_LRS = [0.001]
-INNER_STEPS = [1]
 EVAL_SAMPLES = 1024  # Reduced evaluation samples
-
-# Additional hyperparams for tuning
-WEIGHT_DECAYS = [0.01]
-LR_SCHEDULERS = ["linear"]
-GRAD_ACCUMULATION_STEPS = [2]
 ##########
 
 # Paths and model names
@@ -63,16 +49,13 @@ task_dataset_paths = {
     "switchboard": PATH / "data/babylm_10M_clean/switchboard.train",
 }
 
-# Load and reduce datasets (using 10% of each dataset)
+# Load full datasets
 task_datasets = {}
 for task_name, dataset_path in task_dataset_paths.items():
     dataset = BabylmDataset(
         str(dataset_path), SEQ_LENGTH, tokenizer=tokenizer, random_chunk=True, single_file=True
     )
-    # Use 10% of the dataset
-    subset_size = int(0.1 * len(dataset))
-    subset_indices = sample(range(len(dataset)), subset_size)
-    task_datasets[task_name] = Subset(dataset, subset_indices)
+    task_datasets[task_name] = dataset
 
 # Create evaluation dataset
 full_eval_dataset = BabylmDataset(PATH / "data/babylm_dev_clean", SEQ_LENGTH, tokenizer=tokenizer, offset=0)
@@ -111,7 +94,7 @@ class ReptileTrainer(Trainer):
         self.inner_steps = inner_steps
         self.alpha = alpha
         self.temperature = temperature
-        self.data_collator = data_collator  # Store the data_collator
+        self.data_collator = data_collator
         for teacher in self.teachers:
             teacher.to(self.model.device)
             teacher.eval()
@@ -121,7 +104,6 @@ class ReptileTrainer(Trainer):
         adapted_model.load_state_dict(model.state_dict())  # Copy weights from the original model
         inner_optimizer = torch.optim.SGD(adapted_model.parameters(), lr=self.inner_lr)
         
-        # Use the data_collator in the DataLoader
         task_dataloader = DataLoader(
             task_dataset,
             batch_size=self.args.per_device_train_batch_size,
@@ -131,7 +113,6 @@ class ReptileTrainer(Trainer):
         for step, batch in enumerate(task_dataloader):
             if step >= self.inner_steps:
                 break
-            # Ensure batch is correctly formatted
             inputs = {key: value.to(self.args.device) for key, value in batch.items()}
             outputs = adapted_model(**inputs)
             loss = outputs.loss
@@ -141,12 +122,9 @@ class ReptileTrainer(Trainer):
         return adapted_model
     
     def compute_loss(self, model, inputs, return_outputs=False):
-        # Sample a task
         task_name = sample(list(self.task_datasets.keys()), 1)[0]
         task_dataset = self.task_datasets[task_name]
-        # Inner loop adaptation
         adapted_model = self.inner_loop(model, task_dataset)
-        # Compute loss on batch
         outputs_student = adapted_model(**inputs)
         student_loss = outputs_student.loss
         with torch.no_grad():
@@ -156,7 +134,6 @@ class ReptileTrainer(Trainer):
             F.softmax(avg_teacher_logits / self.temperature, dim=-1)
         ) * (self.temperature ** 2)
         total_loss = self.alpha * student_loss + (1 - self.alpha) * distill_loss
-        # Reptile meta-update
         meta_gradient = [p_s - p for p_s, p in zip(adapted_model.parameters(), model.parameters())]
         for p, g in zip(model.parameters(), meta_gradient):
             if p.grad is not None:
@@ -164,83 +141,64 @@ class ReptileTrainer(Trainer):
             p.grad = g
         return (total_loss, outputs_student) if return_outputs else total_loss
 
-# Hyperparameter search
-hyperparameter_space = list(itertools.product(TEMPERATURES, ALPHAS, INNER_LRS, INNER_STEPS, WEIGHT_DECAYS, LR_SCHEDULERS, GRAD_ACCUMULATION_STEPS))
+# Concatenate full datasets for training
+train_dataset = ConcatDataset(list(task_datasets.values()))
 
-# Initialize wandb if needed
-wandb_log = False  # Set to True if you want to use wandb
-if wandb_log:
-    wandb.login()
+# Define training arguments for 9 epochs
+training_args = TrainingArguments(
+    output_dir=MODEL_OUTPUT_BASE,
+    overwrite_output_dir=True,
+    num_train_epochs=9,  # Train for 9 epochs
+    per_device_train_batch_size=BATCH_SIZE,
+    learning_rate=LR,
+    logging_steps=20,
+    save_steps=1000,
+    save_total_limit=1,
+    logging_dir='./logs',
+    weight_decay=0.05,  # Best weight decay
+    lr_scheduler_type="linear",  # Best lr scheduler
+    gradient_accumulation_steps=2,  # Best gradient accumulation steps
+)
 
-# Loop over hyperparameter combinations
-for temperature, alpha, inner_lr, inner_steps, weight_decay, lr_scheduler, grad_acc_steps in hyperparameter_space:
-    print(f"Training with temperature={temperature}, alpha={alpha}, inner_lr={inner_lr}, inner_steps={inner_steps}, weight_decay={weight_decay}, lr_scheduler={lr_scheduler}, grad_acc_steps={grad_acc_steps}")
-    # Update model name
-    MODEL_NAME = f"{MODEL_BASE_NAME}_temp{temperature}_alpha{alpha}_ilr{inner_lr}_isteps{inner_steps}_wd{weight_decay}_lrsched{lr_scheduler}_gacc{grad_acc_steps}_p2"
-    MODEL_OUTPUT = MODEL_OUTPUT_BASE / MODEL_NAME
-    # Reset student model
-    student = LlamaForCausalLM(config)
-    student.train()
-    # Define training arguments
-    training_args = TrainingArguments(
-        output_dir=MODEL_OUTPUT,
-        overwrite_output_dir=True,
-        num_train_epochs=2,  # Train for 2 epochs now
-        per_device_train_batch_size=BATCH_SIZE,
-        learning_rate=LR,
-        logging_steps=20,
-        save_steps=1000,
-        save_total_limit=1,
-        report_to="wandb" if wandb_log else [],
-        logging_dir='./logs',
-        weight_decay=weight_decay,  # Added weight_decay
-        lr_scheduler_type=lr_scheduler,  # Added learning rate scheduler
-        gradient_accumulation_steps=grad_acc_steps,  # Added gradient accumulation steps
-    )
-    if wandb_log:
-        wandb.init(project='babylm', name=MODEL_NAME)
-    # Initialize trainer
-    trainer = ReptileTrainer(
-        model=student,
-        args=training_args,
-        teacher_models=teachers,
-        task_datasets=task_datasets,
-        inner_lr=inner_lr,
-        inner_steps=inner_steps,
-        alpha=alpha,
-        temperature=temperature,
-        train_dataset=ConcatDataset(list(task_datasets.values())),
-        data_collator=data_collator,  # Pass the data_collator here
-    )
-    # Train model
-    trainer.train()
-    # Save model
-    trainer.save_model(MODEL_OUTPUT)
-    tokenizer.save_pretrained(MODEL_OUTPUT)
-    if wandb_log:
-        wandb.finish()
-    # Run evaluation using lm_eval
-    MODEL_PATH = "../" + str(MODEL_OUTPUT)
-    MODEL_BASENAME = MODEL_OUTPUT.name
-    try:
-        # Change to the evaluation directory
-        os.chdir(eval_dir)
+# Initialize trainer with the full dataset
+trainer = ReptileTrainer(
+    model=student,
+    args=training_args,
+    teacher_models=teachers,
+    task_datasets=task_datasets,
+    inner_lr=0.0005,  # Best inner_lr
+    inner_steps=1,  # Best inner_steps
+    alpha=0.05,  # Best alpha
+    temperature=1.5,  # Best temperature
+    train_dataset=train_dataset,
+    data_collator=data_collator,  # Pass the data_collator here
+)
 
-        # Build command
-        eval_command = [
-            "python", "-m", "lm_eval", "--model", "hf",
-            "--model_args", f'pretrained={MODEL_PATH},backend="causal"',
-            "--tasks", "blimp_filtered,blimp_supplement",
-            "--device", "cuda:0" if torch.cuda.is_available() else "cpu",
-            "--batch_size", "1",
-            "--log_samples",
-            "--output_path", f"results/blimp/{MODEL_BASENAME}/blimp_results.json"
-        ]
+# Train the model on full dataset
+trainer.train()
 
-        # Run evaluation
-        print(f"Evaluating model {MODEL_BASENAME}")
-        subprocess.run(eval_command)
-    
-    finally:
-        # Change back to the original directory
-        os.chdir(original_dir)
+# Save model
+trainer.save_model(MODEL_OUTPUT_BASE)
+tokenizer.save_pretrained(MODEL_OUTPUT_BASE)
+
+# Run evaluation using lm_eval
+MODEL_PATH = "../" + str(MODEL_OUTPUT_BASE)
+MODEL_BASENAME = MODEL_OUTPUT_BASE.name
+
+try:
+    os.chdir(eval_dir)
+
+    eval_command = [
+        "python", "-m", "lm_eval", "--model", "hf",
+        "--model_args", f'pretrained={MODEL_PATH},backend="causal"',
+        "--tasks", "blimp_filtered,blimp_supplement",
+        "--device", "cuda:0" if torch.cuda.is_available() else "cpu",
+        "--batch_size", "1",
+        "--log_samples",
+        "--output_path", f"results/blimp/{MODEL_BASENAME}/blimp_results.json"
+    ]
+
+    subprocess.run(eval_command)
+
+finally:
+    os.chdir(original_dir)
