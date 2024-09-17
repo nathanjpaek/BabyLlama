@@ -1,13 +1,13 @@
 data:
   tokenizer_path: "./models/gpt-clean-16000.json"
-  train_path: "./data/babylm_10M_clean"
+  train_path: "./data/gutenberg_10M"
   eval_path: "./data/babylm_dev_clean"
   seq_length: 128
   eval_samples: 8192
 
 model:
   type: "Llama" # or "GPT2"
-  name: "Llama-360M"
+  name: "Llama-360M-G10"
   hidden_size: 1024
   intermediate_size: 3072
   n_layer: 24
