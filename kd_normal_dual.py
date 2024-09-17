@@ -33,7 +33,7 @@ PATH = Path("./")
 teacher_dir = PATH / './models/TrainAll-2-Nsample-Contrastive_Student/checkpoint-24489'
 baby_llama_teacher_dir = PATH / './models/babyllama-58M-real'
 
-MODEL_NAME = 'Baby-Llama-58M-G10'
+MODEL_NAME = 'Baby-Llama-58M-Distilled-Noncontrastive'
 MODEL_OUTPUT = Path('./models') / MODEL_NAME
 EVAL_SAMPLES = 8192
 
@@ -86,8 +86,10 @@ for teacher in teachers:
     teacher.gradient_checkpointing_enable()
 
 # Freeze the lower layers of the student model for faster fine-tuning
-for param in student.base_model.model[:len(student.base_model.model) // 2].parameters():
+# Freeze the lower layers of the student model for faster fine-tuning
+for param in student.base_model.transformer.h[:len(student.base_model.transformer.h) // 2].parameters():
     param.requires_grad = False
+
 
 # Data Collator for Language Modeling with dynamic padding
 data_collator = DataCollatorForLanguageModeling(
