@@ -7,7 +7,7 @@ data:
 
 model:
   type: "GPT2" # or "GPT2"
-  name: "GPT2-705M-Meta"
+  name: "GPT2-705M"
   hidden_size: 1536
   intermediate_size: 3072 # train.py uses default = 4 * hidden_size 
   n_layer: 24
@@ -18,9 +18,9 @@ model:
 
 training:
   lr: 2.5e-4
-  batch_size: 32
+  batch_size: 128
   num_epochs: 4
-  gradient_accumulation_steps: 64
+  gradient_accumulation_steps: 16
   warmup_steps: 300
   fp16: True
 
@@ -28,4 +28,3 @@ logging:
   wandb: True
   project: "babylm-dev"
   output_dir: "./models/"
-
