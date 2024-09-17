@@ -31,7 +31,7 @@ ALPHA = 0.5
 #############
 PATH = Path("./")
 teacher_dir = PATH / './models/TrainAll-2-Nsample-Contrastive_Student/checkpoint-24489'
-baby_llama_teacher_dir = PATH / './models/Baby-Llama-58M'
+baby_llama_teacher_dir = PATH / './models/babyllama-58M-real'
 
 MODEL_NAME = 'Baby-Llama-58M-G10'
 MODEL_OUTPUT = Path('./models') / MODEL_NAME
