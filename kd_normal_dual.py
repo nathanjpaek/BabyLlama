@@ -85,12 +85,6 @@ teachers = [teacher_student_model, baby_llama_teacher]
 for teacher in teachers:
     teacher.gradient_checkpointing_enable()
 
-# Freeze the lower layers of the student model for faster fine-tuning
-# Freeze the lower layers of the student model for faster fine-tuning
-for param in student.base_model.transformer.h[:len(student.base_model.transformer.h) // 2].parameters():
-    param.requires_grad = False
-
-
 # Data Collator for Language Modeling with dynamic padding
 data_collator = DataCollatorForLanguageModeling(
     tokenizer=tokenizer, mlm=False, pad_to_multiple_of=None  # Enable dynamic padding
