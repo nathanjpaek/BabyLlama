@@ -168,8 +168,7 @@ training_args = DistillationTrainingArguments(
     metric_for_best_model="eval_loss",  # Track evaluation loss for saving best model
     weight_decay=0.05,  # Lower weight decay for more gradual updates
     alpha=ALPHA,
-    temperature=TEMPERATURE,
-    early_stopping=True,  # Enable early stopping if performance plateaus
+    temperature=TEMPERATURE
 )
 
 # Distillation Trainer Setup
