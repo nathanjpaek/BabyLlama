@@ -31,7 +31,7 @@ teacher_student_dir = PATH / './models/TrainAll-2-Nsample-Contrastive_Student/ch
 
 MODEL_NAME = f'Baby-Llama-58M-SelfDistill-Finetune'
 MODEL_OUTPUT = Path('./models') /  MODEL_NAME
-EVAL_SAMPLES = 4096  # Reduced sample size for faster evaluation
+EVAL_SAMPLES = 1024  # Reduced sample size for faster evaluation
 
 wandb_log = True
 
