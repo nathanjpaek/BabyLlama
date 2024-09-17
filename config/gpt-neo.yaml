@@ -1,0 +1,30 @@
+data:
+  tokenizer_path: "./models/gpt-clean-16000.json"
+  train_path: "./data/gutenberg_10M"
+  eval_path: "./data/babylm_dev_clean"
+  seq_length: 128
+  eval_samples: 8192
+
+model:
+  type: "GPT-Neo"  # Using GPT-Neo model
+  name: "GPT-Neo-350M"
+  hidden_size: 1024  # Hidden size for GPT-Neo 350M
+  intermediate_size: 4096  # Intermediate size (4x hidden size)
+  n_layer: 24  # Number of layers for GPT-Neo 350M
+  n_head: 16  # Number of attention heads for GPT-Neo 350M
+  resid_pdrop: 0.1
+  embd_pdrop: 0.1
+  attn_pdrop: 0.1
+
+training:
+  lr: 2.5e-4
+  batch_size: 128
+  num_epochs: 4
+  gradient_accumulation_steps: 16
+  warmup_steps: 300
+  fp16: True
+
+logging: 
+  wandb: True
+  project: "babylm-dev"
+  output_dir: "./models/"
