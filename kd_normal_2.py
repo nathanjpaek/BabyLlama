@@ -17,6 +17,9 @@ from pathlib import Path
 import wandb
 
 
+from babylm_dataset import BabylmDataset
+
+
 #############
 LR = 5e-5  # Reduced for fine-tuning
 BATCH_SIZE = 16  # Reduced batch size for faster convergence
