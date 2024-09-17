@@ -32,11 +32,11 @@ ALPHA = 0.5
 
 PATH = Path("./")
 
-teacher_dir1 = PATH / './models/Llama-360M'
+teacher_dir1 = PATH / './models/Llama-360M-G10'
 teacher_dir2 = PATH / './models/GPT2-705M'
 
 
-MODEL_NAME = f'Baby-Llama-58M'
+MODEL_NAME = f'Baby-Llama-58M-G10'
 MODEL_OUTPUT = Path('./models') /  MODEL_NAME
 EVAL_SAMPLES = 8192
 
