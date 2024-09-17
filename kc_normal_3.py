@@ -69,10 +69,10 @@ config = LlamaConfig(
 )
 
 # Load the pretrained teacher model
-teacher_student_model = LlamaForCausalLM.from_pretrained(teacher_dir)
+teacher_student_model = LlamaForCausalLM.from_pretrained(teacher_dir, use_cache=False)
 
 # Set the student model to be the same as the teacher model for self-distillation
-student = LlamaForCausalLM.from_pretrained(teacher_dir)  # The student is initialized with the pretrained teacher model
+student = LlamaForCausalLM.from_pretrained(teacher_dir, use_cache=False)  # The student is initialized with the pretrained teacher model
 
 # Enable gradient checkpointing for memory optimization
 student.gradient_checkpointing_enable()
@@ -85,6 +85,7 @@ for param in student.parameters():
 for layer in student.model.layers[-2:]:
     for param in layer.parameters():
         param.requires_grad = True  # Unfreeze the last 2 layers
+
 
 # Additional guidance teacher model (Baby-Llama-58M)
 baby_llama_teacher = LlamaForCausalLM.from_pretrained(baby_llama_teacher_dir)
