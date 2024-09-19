@@ -33,7 +33,7 @@ PATH = Path("./")
 
 teacher_dir1 = PATH / './models/Llama-360M-G10'
 teacher_dir2 = PATH / './models/GPT2-705M'
-teacher_dir3 = PATH / './models/ELECTRA-705M'  # Path to the ELECTRA model
+teacher_dir3 = PATH / './models/Electra-705M'  # Path to the ELECTRA model
 
 
 MODEL_NAME = f'Baby-Llama-58M-G10'
