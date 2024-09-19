@@ -57,6 +57,11 @@ data_collator = DataCollatorForLanguageModeling(
     tokenizer=tokenizer, mlm=False,
 )
 
+output_dir = Path(config['logging']['output_dir']) / config['model']['name']
+accumulation_steps = config['training']['gradient_accumulation_steps']
+per_device_bsz = config['training']['batch_size'] // accumulation_steps
+
+
 # Dynamic Model Configuration
 if config['model']['type'] == "Llama":
     model = LlamaForCausalLM.from_pretrained(output_dir)
@@ -72,11 +77,6 @@ elif config['model']['type'] == "Electra":
 model = accelerator.prepare(model)
 
 print(f'Model parameters = {model.num_parameters()}')
-
-output_dir = Path(config['logging']['output_dir']) / config['model']['name']
-accumulation_steps = config['training']['gradient_accumulation_steps']
-per_device_bsz = config['training']['batch_size'] // accumulation_steps
-
 training_args = TrainingArguments(
     output_dir=output_dir,
     overwrite_output_dir=False,  # Do not overwrite the previous checkpoints
