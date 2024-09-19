@@ -50,7 +50,7 @@ tokenizer.bos_token = "<s>"
 tokenizer.eos_token = "</s>"
 tokenizer.pad_token = "<pad>"
 
-train_dataset = BabylmDataset(PATH / "data/babylm_10M_clean", SEQ_LENGTH, tokenizer=tokenizer, random_chunk=True)
+train_dataset = BabylmDataset(PATH / "data/gutenberg_10M", SEQ_LENGTH, tokenizer=tokenizer, random_chunk=True)
 full_eval_dataset = BabylmDataset(PATH / "data/babylm_dev_clean", SEQ_LENGTH, tokenizer=tokenizer, offset=0)
 
 eval_indices = sample(range(len(full_eval_dataset)), EVAL_SAMPLES)
