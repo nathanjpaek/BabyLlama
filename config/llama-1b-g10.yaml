@@ -1,0 +1,27 @@
+data:
+  tokenizer_path: "./models/gpt-clean-16000.json"
+  train_path: "./data/gutenberg_10M"
+  eval_path: "./data/babylm_dev_clean"
+  seq_length: 128
+  eval_samples: 8192
+
+model:
+  type: "Llama"  # Still Llama for 1B
+  name: "Llama-1B-G10"  # Updated the model name to reflect Llama 1B
+  hidden_size: 2048  # Llama 1B hidden size
+  intermediate_size: 8192  # Llama 1B intermediate size
+  n_layer: 24  # Llama 1B has 24 layers
+  n_head: 32  # Llama 1B has 32 attention heads
+
+training:
+  lr: 1e-4  # Lower learning rate for stability with larger models
+  batch_size: 64  # Moderate batch size for 1B model, adjust based on available GPU memory
+  num_epochs: 4
+  gradient_accumulation_steps: 16  # Adjust gradient accumulation based on batch size
+  warmup_steps: 500  # Increased warmup for larger models
+  fp16: True  # Keep mixed precision for reduced memory usage
+
+logging: 
+  wandb: True
+  project: "babylm-dev"
+  output_dir: "./models/"
