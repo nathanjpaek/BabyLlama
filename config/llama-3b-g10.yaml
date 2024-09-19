@@ -15,9 +15,9 @@ model:
 
 training:
   lr: 1e-4  # Lower learning rate for stability with larger models
-  batch_size: 32  # Moderate batch size for 3B model, adjust based on available GPU memory
+  batch_size: 16  # Moderate batch size for 3B model, adjust based on available GPU memory
   num_epochs: 4
-  gradient_accumulation_steps: 32  # Adjust gradient accumulation based on batch size
+  gradient_accumulation_steps: 64  # Adjust gradient accumulation based on batch size
   warmup_steps: 500  # Increased warmup for larger models
   fp16: True  # Keep mixed precision for reduced memory usage
 
