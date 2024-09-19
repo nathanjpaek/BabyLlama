@@ -1,0 +1,27 @@
+data:
+  tokenizer_path: "./models/gpt-clean-16000.json"
+  train_path: "./data/gutenberg_10M"
+  eval_path: "./data/babylm_dev_clean"
+  seq_length: 128
+  eval_samples: 8192
+
+model:
+  type: "Llama"
+  name: "Llama-7B-G10"  # Updated the model name to reflect Llama 7B
+  hidden_size: 4096  # Llama 7B hidden size
+  intermediate_size: 11008  # Llama 7B intermediate size
+  n_layer: 32  # Llama 7B has 32 layers
+  n_head: 32  # Llama 7B has 32 attention heads
+
+training:
+  lr: 1e-4
+  batch_size: 128
+  num_epochs: 9
+  gradient_accumulation_steps: 8
+  warmup_steps: 600
+  fp16: True
+
+logging: 
+  wandb: True
+  project: "babylm-dev"
+  output_dir: "./models/"
