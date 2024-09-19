@@ -3,7 +3,7 @@ from transformers import (
     LlamaForCausalLM,
     LlamaConfig,
     GPT2LMHeadModel,
-    ElectraForPreTraining,  # Import Electra
+    ElectraForMaskedLM,  # Use ElectraForMaskedLM instead of ElectraForPreTraining
     Trainer,
     TrainingArguments,
     DataCollatorForLanguageModeling,
@@ -18,7 +18,6 @@ from pathlib import Path
 import wandb
 from babylm_dataset import BabylmDataset
 
-
 #############
 LR = 2.5e-4
 BATCH_SIZE = 32
@@ -28,21 +27,17 @@ TEMPERATURE = 2.0
 ALPHA = 0.5
 #############
 
-
 PATH = Path("./")
 
 teacher_dir1 = PATH / './models/Llama-360M-G10'
 teacher_dir2 = PATH / './models/GPT2-705M'
 teacher_dir3 = PATH / './models/Electra-705M'  # Path to the ELECTRA model
 
-
 MODEL_NAME = f'Baby-Llama-58M-G10'
 MODEL_OUTPUT = Path('./models') / MODEL_NAME
 EVAL_SAMPLES = 8192
 
-
 wandb_log = True
-
 
 tokenizer_path = PATH / "models/gpt-clean-16000.json"
 tokenizer = GPT2TokenizerFast(tokenizer_file=str(tokenizer_path))
@@ -55,7 +50,6 @@ full_eval_dataset = BabylmDataset(PATH / "data/babylm_dev_clean", SEQ_LENGTH, to
 
 eval_indices = sample(range(len(full_eval_dataset)), EVAL_SAMPLES)
 eval_dataset = Subset(full_eval_dataset, eval_indices)
-
 
 tokenizer.model_max_length = SEQ_LENGTH
 
@@ -75,24 +69,20 @@ student = LlamaForCausalLM(config)
 
 teacher1 = LlamaForCausalLM.from_pretrained(teacher_dir1)
 teacher2 = GPT2LMHeadModel.from_pretrained(teacher_dir2)
-teacher3 = ElectraForPreTraining.from_pretrained(teacher_dir3)  # Load ELECTRA
+teacher3 = ElectraForMaskedLM.from_pretrained(teacher_dir3)  # Load ElectraForMaskedLM
 
-teachers = [teacher1, teacher2, teacher3]  # Add ELECTRA to the list
-
+teachers = [teacher1, teacher2, teacher3]  # Add Electra to the list
 
 data_collator = DataCollatorForLanguageModeling(
     tokenizer=tokenizer, mlm=False,
 )
-
 
 print(f'model num parameters: student = {student.num_parameters()}')
 print(f'model num parameters: teacher1 = {teacher1.num_parameters()}')
 print(f'model num parameters: teacher2 = {teacher2.num_parameters()}')
 print(f'model num parameters: teacher3 = {teacher3.num_parameters()}')
 
-
 #  Distillation Trainer
-
 
 class DistillationTrainingArguments(TrainingArguments):
     def __init__(self, *args, alpha=0.5, temperature=2.0, **kwargs):
@@ -100,39 +90,45 @@ class DistillationTrainingArguments(TrainingArguments):
         self.alpha = alpha
         self.temperature = temperature
 
-
 class DistillationTrainer(Trainer):
     def __init__(self, *args, teacher_models=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.teachers = teacher_models
         for teacher in self.teachers:
-            # place each teacher on same device as student
+            # Place each teacher on same device as student
             self._move_model_to_device(teacher, self.model.device)
             teacher.eval()
 
     def compute_loss(self, model, inputs, return_outputs=False):
-        # compute student output
+        # Compute student output
         outputs_student = model(**inputs)
         student_loss = outputs_student.loss
 
-        # Reshape inputs for teachers to ensure dimension matching
+        # Filter out 'past_key_values' if present
         inputs_for_teachers = {key: value for key, value in inputs.items() if key != "past_key_values"}
 
-        # compute teacher output
+        # Compute teacher outputs
         with torch.no_grad():
             all_teacher_logits = []
             for teacher in self.teachers:
                 outputs_teacher = teacher(**inputs_for_teachers)
+                teacher_logits = outputs_teacher.logits
+
                 # Ensure teacher logits match student logits dimension
-                teacher_logits = outputs_teacher.logits[:, :outputs_student.logits.size(1), :]
+                if teacher_logits.dim() == 3:
+                    teacher_logits = teacher_logits[:, :outputs_student.logits.size(1), :]
+                else:
+                    raise ValueError("Teacher logits must be a 3D tensor")
+
                 all_teacher_logits.append(teacher_logits)
-            
+
             # Weighted average of teacher logits
             teacher_weights = [0.4, 0.5, 0.1]  # Llama: 40%, GPT: 50%, Electra: 10%
             weighted_teacher_logits = sum(weight * logits for weight, logits in zip(teacher_weights, all_teacher_logits))
 
-        # assert size
-        assert outputs_student.logits.size() == weighted_teacher_logits.size()
+        # Ensure sizes match
+        assert outputs_student.logits.size() == weighted_teacher_logits.size(), \
+            f"Student logits size {outputs_student.logits.size()} does not match teacher logits size {weighted_teacher_logits.size()}"
 
         # Soften probabilities and compute distillation loss
         loss_function = nn.KLDivLoss(reduction="batchmean")
@@ -147,11 +143,9 @@ class DistillationTrainer(Trainer):
         loss = self.args.alpha * student_loss + (1.0 - self.args.alpha) * loss_logits
         return (loss, outputs_student) if return_outputs else loss
 
-
 if wandb_log:
     wandb.login()
     wandb.init(project='babylm', name=MODEL_NAME)
-
 
 training_args = DistillationTrainingArguments(
     output_dir=MODEL_OUTPUT,
@@ -174,7 +168,6 @@ training_args = DistillationTrainingArguments(
     alpha=ALPHA,
     temperature=TEMPERATURE,
 )
-
 
 trainer = DistillationTrainer(
     student,
