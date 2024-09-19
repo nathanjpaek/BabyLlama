@@ -1,0 +1,30 @@
+data:
+  tokenizer_path: "./models/gpt-clean-16000.json"
+  train_path: "./data/gutenberg_10M"
+  eval_path: "./data/babylm_dev_clean"
+  seq_length: 128
+  eval_samples: 8192
+
+model:
+  type: "Electra"
+  name: "Electra-705M"
+  hidden_size: 1536
+  intermediate_size: 6144  # Typically 4 * hidden_size for Electra
+  n_layer: 24
+  n_head: 16
+  resid_pdrop: 0.1  # Dropout rates for residual connections, should be adjusted for Electra
+  embd_pdrop: 0.1  # Embedding dropout
+  attn_pdrop: 0.1  # Attention dropout
+
+training:
+  lr: 2.5e-4
+  batch_size: 128
+  num_epochs: 4
+  gradient_accumulation_steps: 16
+  warmup_steps: 1000
+  fp16: True
+
+logging:
+  wandb: True
+  project: "babylm-dev"
+  output_dir: "./models/"
