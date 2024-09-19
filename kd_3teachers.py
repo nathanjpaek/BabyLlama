@@ -35,7 +35,7 @@ teacher_dir2 = PATH / './models/GPT2-705M'
 teacher_dir3 = PATH / './models/ELECTRA-705M'  # Path to the ELECTRA model
 
 
-MODEL_NAME = f'Baby-Llama-58M-G10'
+MODEL_NAME = f'Baby-Llama-3-teacher'
 MODEL_OUTPUT = Path('./models') / MODEL_NAME
 EVAL_SAMPLES = 8192
 
