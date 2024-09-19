@@ -16,6 +16,7 @@ from random import sample
 
 from pathlib import Path
 import wandb
+from babylm_dataset import BabylmDataset
 
 
 #############
