@@ -16,7 +16,6 @@ from random import sample
 
 from pathlib import Path
 import wandb
-from babylm_dataset import BabylmDataset
 
 
 #############
@@ -33,10 +32,10 @@ PATH = Path("./")
 
 teacher_dir1 = PATH / './models/Llama-360M-G10'
 teacher_dir2 = PATH / './models/GPT2-705M'
-teacher_dir3 = PATH / './models/Electra-705M'  # Path to the ELECTRA model
+teacher_dir3 = PATH / './models/ELECTRA-705M'  # Path to the ELECTRA model
 
 
-MODEL_NAME = f'Baby-Llama-3-teacher'
+MODEL_NAME = f'Baby-Llama-58M-G10'
 MODEL_OUTPUT = Path('./models') / MODEL_NAME
 EVAL_SAMPLES = 8192
 
@@ -50,7 +49,7 @@ tokenizer.bos_token = "<s>"
 tokenizer.eos_token = "</s>"
 tokenizer.pad_token = "<pad>"
 
-train_dataset = BabylmDataset(PATH / "data/gutenberg_10M", SEQ_LENGTH, tokenizer=tokenizer, random_chunk=True)
+train_dataset = BabylmDataset(PATH / "data/babylm_10M_clean", SEQ_LENGTH, tokenizer=tokenizer, random_chunk=True)
 full_eval_dataset = BabylmDataset(PATH / "data/babylm_dev_clean", SEQ_LENGTH, tokenizer=tokenizer, offset=0)
 
 eval_indices = sample(range(len(full_eval_dataset)), EVAL_SAMPLES)
@@ -115,12 +114,17 @@ class DistillationTrainer(Trainer):
         outputs_student = model(**inputs)
         student_loss = outputs_student.loss
 
+        # Reshape inputs for teachers to ensure dimension matching
+        inputs_for_teachers = {key: value for key, value in inputs.items() if key != "past_key_values"}
+
         # compute teacher output
         with torch.no_grad():
             all_teacher_logits = []
             for teacher in self.teachers:
-                outputs_teacher = teacher(**inputs)
-                all_teacher_logits.append(outputs_teacher.logits)
+                outputs_teacher = teacher(**inputs_for_teachers)
+                # Ensure teacher logits match student logits dimension
+                teacher_logits = outputs_teacher.logits[:, :outputs_student.logits.size(1), :]
+                all_teacher_logits.append(teacher_logits)
             
             # Weighted average of teacher logits
             teacher_weights = [0.4, 0.5, 0.1]  # Llama: 40%, GPT: 50%, Electra: 10%
