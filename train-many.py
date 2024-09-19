@@ -2,7 +2,7 @@ from transformers import (
     GPT2Config, GPT2LMHeadModel, 
     LlamaConfig, LlamaForCausalLM, 
     GPTJConfig, GPTJForCausalLM,
-    ElectraConfig, ElectraForCausalLM  # Importing Electra classes
+    ElectraConfig, ElectraForCausalLM
 )
 from transformers import Trainer, TrainingArguments, DataCollatorForLanguageModeling
 from transformers import GPT2TokenizerFast
@@ -13,7 +13,10 @@ import yaml
 import argparse
 
 from babylm_dataset import BabylmDataset
+from accelerate import Accelerator  # Import accelerate
 
+# Initialize accelerator for CPU/GPU offloading
+accelerator = Accelerator()
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--config", type=str, default="./config/llama-16M.yaml", help="Configuration file path")
@@ -67,6 +70,7 @@ if config['model']['type'] == "Llama":
         pad_token_id=tokenizer.convert_tokens_to_ids("<pad>"),
     )
     model = LlamaForCausalLM(model_config)
+    model.gradient_checkpointing_enable()  # Enable gradient checkpointing
 elif config['model']['type'] == "GPT2":
     model_config = GPT2Config(
         vocab_size=tokenizer.vocab_size,
@@ -106,6 +110,9 @@ elif config['model']['type'] == "Electra":
         tie_word_embeddings=config['model'].get('tie_word_embeddings', False),
     )
     model = ElectraForCausalLM(model_config)
+
+# Offload to CPU if necessary
+model = accelerator.prepare(model)
 
 print(f'Model parameters = {model.num_parameters()}')
 
