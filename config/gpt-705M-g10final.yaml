@@ -1,13 +1,13 @@
 data:
   tokenizer_path: "./models/gpt-clean-16000-gutenberg.json"
-  train_path: "./data/gutenberg_10M"
+  train_path: "./data/gutenberg_10M-BETTER"
   eval_path: "./data/babylm_dev_clean"
   seq_length: 128
   eval_samples: 8192
 
 model:
   type: "GPT2" # or "GPT2"
-  name: "GPT2-705M"
+  name: "GPT2-705M-g10final"
   hidden_size: 1536
   intermediate_size: 3072 # train.py uses default = 4 * hidden_size 
   n_layer: 24
