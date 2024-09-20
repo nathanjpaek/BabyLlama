@@ -32,11 +32,11 @@ ALPHA = 0.5
 
 PATH = Path("./")
 
-teacher_dir1 = PATH / './models/Llama-360M-gutenberg'
-teacher_dir2 = PATH / './models/GPT2-705M'
+teacher_dir1 = PATH / './models/llama-60M-all'
+teacher_dir2 = PATH / './models/GPT2-44M-all'
 
 
-MODEL_NAME = f'Small-baby-20M'
+MODEL_NAME = f'Small-baby-58M-50Mteacher'
 MODEL_OUTPUT = Path('./models') /  MODEL_NAME
 EVAL_SAMPLES = 8192
 
@@ -66,10 +66,10 @@ tokenizer.model_max_length = SEQ_LENGTH
 
 config = LlamaConfig(
     vocab_size=tokenizer.vocab_size,
-    hidden_size=384,  # Reduced from 512
-    num_hidden_layers=4,  # Reduced from 16
-    intermediate_size=1024,  # Keeping it for capacity in feedforward layers
-    num_attention_heads=4,  # Reduced from 8
+    hidden_size=512,
+    num_hidden_layers=16,
+    intermediate_size=1024,
+    num_attention_heads=8,
     bos_token_id=tokenizer.convert_tokens_to_ids("<s>"),
     eos_token_id=tokenizer.convert_tokens_to_ids("</s>"),
     pad_token_id=tokenizer.convert_tokens_to_ids("<pad>"),
