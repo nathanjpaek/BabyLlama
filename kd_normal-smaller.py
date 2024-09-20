@@ -32,7 +32,7 @@ ALPHA = 0.5
 
 PATH = Path("./")
 
-teacher_dir1 = PATH / './models/Llama-20M-all'
+teacher_dir1 = PATH / './models/Llama-20M'
 teacher_dir2 = PATH / './models/GPT2-18M-all'
 
 
