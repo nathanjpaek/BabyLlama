@@ -74,7 +74,7 @@ prompts = [
 critique_prompt_template = "Critique this text for coherence and grammar: '{}'. Is it coherent and grammatically correct?"
 
 # Define output file path in the "data" folder
-output_path = Path("data") / "synthetic_high_quality.train"
+output_path = PATH / './data/synthetic_data.train'  
 
 # Generate high-quality synthetic data and save it to a .train file
 generate_synthetic_data_with_self_critique(prompts, critique_prompt_template, output_path)
