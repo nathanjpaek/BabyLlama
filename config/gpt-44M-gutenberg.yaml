@@ -1,13 +1,13 @@
 data:
-  tokenizer_path: "./models/gpt-clean-16000-this_years.json"
-  train_path: "./data/babylm_10M_clean"
+  tokenizer_path: "./models/gpt-clean-16000-gutenberg.json"
+  train_path: "./data/gutenberg_10M"
   eval_path: "./data/babylm_dev_clean"
   seq_length: 128
   eval_samples: 16384
 
 model:
   type: "GPT2"
-  name: "GPT2-44M-all"
+  name: "GPT2-44M-gutenberg"
   hidden_size: 768  # Unchanged
   n_layer: 2        # Reduced from 12
   n_head: 8         # Reduced from 12
