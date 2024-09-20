@@ -3,6 +3,7 @@ from transformers import (
     LlamaForCausalLM,
     LlamaConfig,
     GPT2LMHeadModel,
+    GPT2Config,  # Added for GPT-2 configuration
     Trainer,
     TrainingArguments,
     DataCollatorForLanguageModeling,
@@ -10,13 +11,10 @@ from transformers import (
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.utils.data import  Subset
+from torch.utils.data import Subset
 from random import sample
-
 from pathlib import Path
 import wandb
-
-
 from babylm_dataset import BabylmDataset
 
 
@@ -24,26 +22,20 @@ from babylm_dataset import BabylmDataset
 LR = 2.5e-4
 BATCH_SIZE = 32
 SEQ_LENGTH = 128
-
 TEMPERATURE = 2.0
 ALPHA = 0.5
 #############
 
-
 PATH = Path("./")
 
-teacher_dir1 = PATH / './models/Llama-360M-G10'
-teacher_dir2 = PATH / './models/GPT2-705M'
+teacher_dir1 = PATH / './models/llama-60M-all'
+teacher_dir2 = PATH / './models/GPT2-44M-all'
 
-
-MODEL_NAME = f'Baby-Llama-58M-G10'
-MODEL_OUTPUT = Path('./models') /  MODEL_NAME
+MODEL_NAME = f'44M-GPT-Baby-50M'
+MODEL_OUTPUT = Path('./models') / MODEL_NAME
 EVAL_SAMPLES = 8192
 
-
 wandb_log = True
-
-
 
 tokenizer_path = PATH / "models/gpt-clean-16000-this_years.json"
 tokenizer = GPT2TokenizerFast(tokenizer_file= str(tokenizer_path))
@@ -59,54 +51,40 @@ full_eval_dataset = BabylmDataset(PATH / "data/babylm_dev_clean", SEQ_LENGTH, to
 eval_indices = sample(range(len(full_eval_dataset)), EVAL_SAMPLES)
 eval_dataset = Subset(full_eval_dataset, eval_indices)
 
-
-
-
 tokenizer.model_max_length = SEQ_LENGTH
 
-config = LlamaConfig(
+# GPT-2 Configuration with the specified parameters
+config = GPT2Config(
     vocab_size=tokenizer.vocab_size,
-    hidden_size=512,
-    num_hidden_layers=16,
-    intermediate_size=1024,
-    num_attention_heads=8,
-    bos_token_id=tokenizer.convert_tokens_to_ids("<s>"),
-    eos_token_id=tokenizer.convert_tokens_to_ids("</s>"),
-    pad_token_id=tokenizer.convert_tokens_to_ids("<pad>"),
-    max_position_embeddings=2*SEQ_LENGTH,
+    n_embd=768,  # Hidden size remains 768
+    n_layer=2,   # Reduced to 2 layers
+    n_head=8,    # Reduced to 8 heads
+    resid_pdrop=0.0,  # Dropout set to 0
+    attn_pdrop=0.0,
+    embd_pdrop=0.0,
 )
 
-student = LlamaForCausalLM(config)
-# student = LlamaForCausalLM.from_pretrained(student_dir)
-
+# Define the student model as GPT-2 with the new configuration
+student = GPT2LMHeadModel(config)
 
 teacher1 = LlamaForCausalLM.from_pretrained(teacher_dir1)
 teacher2 = GPT2LMHeadModel.from_pretrained(teacher_dir2)
 teachers = [teacher1, teacher2]
 
-
 data_collator = DataCollatorForLanguageModeling(
     tokenizer=tokenizer, mlm=False,
 )
-
 
 print(f'model num parameters: student = {student.num_parameters()}')
 print(f'model num parameters: teacher1 = {teacher1.num_parameters()}')
 print(f'model num parameters: teacher2 = {teacher2.num_parameters()}')
 
-
-
-#  Distillation Trainer
-#  We modified the Trainer from this repo https://github.com/philschmid/knowledge-distillation-transformers-pytorch-sagemaker
-# to work with an ensemble of teachers
-
-
+# Distillation Trainer
 class DistillationTrainingArguments(TrainingArguments):
     def __init__(self, *args, alpha=0.5, temperature=2.0, **kwargs):
         super().__init__(*args, **kwargs)
         self.alpha = alpha
         self.temperature = temperature
-
 
 class DistillationTrainer(Trainer):
     def __init__(self, *args, teacher_models=None, **kwargs):
@@ -146,26 +124,21 @@ class DistillationTrainer(Trainer):
         loss = self.args.alpha * student_loss + (1.0 - self.args.alpha) * loss_logits
         return (loss, outputs_student) if return_outputs else loss
 
-
 if wandb_log:
     wandb.login()
     wandb.init(project='babylm', name=MODEL_NAME)
 
-
-
-
-
 training_args = DistillationTrainingArguments(
     output_dir=MODEL_OUTPUT,
     overwrite_output_dir=True,
-    save_strategy = "epoch",
-    evaluation_strategy = "epoch",
+    save_strategy="epoch",
+    evaluation_strategy="epoch",
     num_train_epochs=6,
     gradient_accumulation_steps=1,
     per_device_train_batch_size=BATCH_SIZE,
     save_total_limit=1,  # Set to zero to avoid saving
     report_to="wandb",
-    warmup_steps=200, 
+    warmup_steps=200,
     lr_scheduler_type="cosine",
     learning_rate=LR,
     logging_steps=20,
@@ -177,7 +150,6 @@ training_args = DistillationTrainingArguments(
     temperature=TEMPERATURE,
 )
 
-
 trainer = DistillationTrainer(
         student,
         training_args,
@@ -185,22 +157,9 @@ trainer = DistillationTrainer(
         data_collator=data_collator,
         train_dataset=train_dataset,
         eval_dataset=eval_dataset,
-
     )
-
 
 trainer.train()
 
-
 trainer.save_model(MODEL_OUTPUT)
 tokenizer.save_pretrained(MODEL_OUTPUT)
-
-
-
-
-
-
-
-
-
-
