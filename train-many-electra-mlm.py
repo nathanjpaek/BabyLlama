@@ -7,6 +7,7 @@ from random import sample, seed
 from pathlib import Path
 import yaml
 import argparse
+import torch
 
 from babylm_dataset import BabylmDataset
 from accelerate import Accelerator  # Import accelerate
