@@ -53,7 +53,7 @@ eval_dataset = Subset(full_eval_dataset, eval_indices)
 tokenizer.model_max_length = SEQ_LENGTH
 
 data_collator = DataCollatorForLanguageModeling(
-    tokenizer=tokenizer, mlm=False,
+    tokenizer=tokenizer, mlm=False, pad_to_multiple_of=8  # Helps with memory alignment
 )
 
 # Dynamic Model Configuration
