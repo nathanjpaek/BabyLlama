@@ -1,0 +1,28 @@
+data:
+  tokenizer_path: "./models/gpt-clean-16000-this_years.json"
+  train_path: "./data/babylm_10M_clean"
+  eval_path: "./data/babylm_dev_clean"
+  seq_length: 128
+  eval_samples: 8192
+
+model:
+  type: "Llama"
+  name: "llama-60M-all"
+  hidden_size: 768  # Set to 768
+  intermediate_size: 2048  # 2/3 * 4 * hidden_size
+  n_layer: 2        # Keeping at 2 layers
+  n_head: 8         # Increased to 8 heads
+  tie_word_embeddings: False
+
+training:
+  lr: 3e-4
+  batch_size: 128
+  num_epochs: 4
+  gradient_accumulation_steps: 1
+  warmup_steps: 300
+  fp16: True
+
+logging: 
+  wandb: True
+  project: "babylm-dev"
+  output_dir: "./models/"
