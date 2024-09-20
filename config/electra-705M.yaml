@@ -1,5 +1,5 @@
 data:
-  tokenizer_path: "./models/gpt-clean-16000.json"
+  tokenizer_path: "./models/gpt-clean-16000-gutenberg.json"
   train_path: "./data/gutenberg_10M"
   eval_path: "./data/babylm_dev_clean"
   seq_length: 128

@@ -16,6 +16,7 @@ The tokenizer is saved in '/models' folder. We use the same tokenizer for both t
 To train the teacher models: 
 ```
 python train.py --config ./config/gpt-705M.yaml
+python train-many-electra-mlm.py --config ./config/electra-705M.yaml
 ```
 And analogously for `llama-360M.yaml`.
 One can also rewrite the learning rate and the model name defined in the config by adding arguments `--lr` and `--model_name` respectively. The trained model is saved in the `/models` folder.
