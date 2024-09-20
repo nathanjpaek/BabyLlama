@@ -1,4 +1,4 @@
-from transformers import LlamaForCausalLM, GPT2TokenizerFast
+from transformers import LlamaForCausalLM, GPT2TokenizerFast, GPT2LMHeadModel
 import torch
 from pathlib import Path
 
@@ -8,7 +8,7 @@ teacher_student_dir = PATH / './models/GPT2-705M'  # Same directory for both stu
 # Load the tokenizer and pre-trained model
 tokenizer_path = PATH / "models/gpt-clean-16000.json"
 tokenizer = GPT2TokenizerFast(tokenizer_file=str(tokenizer_path))
-model = LlamaForCausalLM.from_pretrained(teacher_student_dir)
+model = GPT2LMHeadModel.from_pretrained(teacher_student_dir)
 
 # Enable gradient checkpointing to reduce memory usage
 model.gradient_checkpointing_enable()
