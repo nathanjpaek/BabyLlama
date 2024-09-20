@@ -1,7 +1,7 @@
 from transformers import (
-    ElectraConfig, ElectraForMaskedLM, ElectraForPreTraining, Trainer, TrainingArguments, DataCollatorForLanguageModeling
+    ElectraConfig, ElectraForMaskedLM, ElectraForPreTraining, PreTrainedTokenizerFast, Trainer, TrainingArguments, DataCollatorForLanguageModeling
 )
-from transformers import GPT2TokenizerFast
+# from transformers import GPT2TokenizerFast
 from torch.utils.data import Subset
 from random import sample, seed
 from pathlib import Path
@@ -32,10 +32,13 @@ if args.model_name:
 SEQ_LENGTH = config['data']['seq_length']
 
 tokenizer_path = config['data']['tokenizer_path']
-tokenizer = GPT2TokenizerFast(tokenizer_file=str(tokenizer_path))
+tokenizer = PreTrainedTokenizerFast(tokenizer_file=str(tokenizer_path))
+
 tokenizer.bos_token = "<s>"
 tokenizer.eos_token = "</s>"
 tokenizer.pad_token = "<pad>"
+tokenizer.mask_token = "[MASK]"
+tokenizer.unk_token= "[UNK]"
 
 # In the original code, random_chunk = False
 # random_chunk=True is expected to improve the model performance a bit
