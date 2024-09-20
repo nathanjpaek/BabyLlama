@@ -19,19 +19,21 @@ tokenizer.eos_token = "</s>"
 tokenizer.pad_token = "<pad>"
 
 # Function to generate output and self-critique
+# Function to generate output and self-critique
 def generate_with_self_critique(prompt, critique_prompt_template):
     # Generate text from the model
     inputs = tokenizer(prompt, return_tensors="pt")
-    output_ids = model.generate(inputs['input_ids'], max_length=100)
+    output_ids = model.generate(inputs['input_ids'], max_new_tokens=100)
     generated_text = tokenizer.decode(output_ids[0], skip_special_tokens=True)
     
     # Generate critique of the output
     critique_prompt = critique_prompt_template.format(generated_text)
     critique_inputs = tokenizer(critique_prompt, return_tensors="pt")
-    critique_output_ids = model.generate(critique_inputs['input_ids'], max_length=50)
+    critique_output_ids = model.generate(critique_inputs['input_ids'], max_new_tokens=50)  # Use max_new_tokens
     critique = tokenizer.decode(critique_output_ids[0], skip_special_tokens=True)
     
     return generated_text, critique
+
 
 # Function to filter output based on critique
 def filter_based_on_critique(generated_text, critique, thresholds={"coherence": "good", "grammar": "correct"}):
