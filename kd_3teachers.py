@@ -3,6 +3,7 @@ from transformers import (
     LlamaForCausalLM,
     LlamaConfig,
     GPT2LMHeadModel,
+    GPTJForCausalLM,
     ElectraForMaskedLM,  # Use ElectraForMaskedLM instead of ElectraForPreTraining
     Trainer,
     TrainingArguments,
@@ -31,9 +32,9 @@ PATH = Path("./")
 
 teacher_dir1 = PATH / './models/Llama-360M-G10'
 teacher_dir2 = PATH / './models/GPT2-705M'
-teacher_dir3 = PATH / './models/Electra-705M'  # Path to the ELECTRA model
+teacher_dir3 = PATH / './models/GPT-J-97M'  
 
-MODEL_NAME = f'Baby-Llama-3-teachers'
+MODEL_NAME = f'Baby-Llama-3-teachers-2'
 MODEL_OUTPUT = Path('./models') / MODEL_NAME
 EVAL_SAMPLES = 8192
 
@@ -69,7 +70,7 @@ student = LlamaForCausalLM(config)
 
 teacher1 = LlamaForCausalLM.from_pretrained(teacher_dir1)
 teacher2 = GPT2LMHeadModel.from_pretrained(teacher_dir2)
-teacher3 = ElectraForMaskedLM.from_pretrained(teacher_dir3)  # Load ElectraForMaskedLM
+teacher3 = GPTJForCausalLM.from_pretrained(teacher_dir3)  # Load ElectraForMaskedLM
 
 teachers = [teacher1, teacher2, teacher3]  # Add Electra to the list
 
