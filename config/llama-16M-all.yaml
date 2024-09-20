@@ -7,7 +7,7 @@ data:
 
 model:
   type: "Llama"
-  name: "Llama-20M"
+  name: "Llama-20M-all"
   hidden_size: 384  # Reduced from 768
   intermediate_size: 1024  # Adjusted based on 2/3 * 4 * hidden_size
   n_layer: 2        # Reduced from 10
