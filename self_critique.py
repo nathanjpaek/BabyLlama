@@ -3,7 +3,7 @@ import torch
 from pathlib import Path
 
 PATH = Path("./")
-teacher_student_dir = PATH / './models/GPT-705M'  # Same directory for both student and teacher
+teacher_student_dir = PATH / './models/GPT2-705M'  # Same directory for both student and teacher
 
 # Load the tokenizer and pre-trained model
 tokenizer_path = PATH / "models/gpt-clean-16000.json"
