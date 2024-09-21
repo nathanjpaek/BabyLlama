@@ -1,0 +1,30 @@
+data:
+  tokenizer_path: "./models/gpt-clean-16000-childes.json"
+  train_path: "./data/childes_10M"
+  eval_path: "./data/babylm_dev_clean"
+  seq_length: 128
+  eval_samples: 16384
+
+model:
+  type: "GPT2"
+  name: "GPT2-44M-childes"
+  hidden_size: 768  # Unchanged
+  n_layer: 2        # Reduced from 12
+  n_head: 8         # Reduced from 12
+  resid_pdrop: 0.0
+  attn_pdrop: 0.0
+  embd_pdrop: 0.0
+
+training:
+  lr: 7e-4
+  batch_size: 128
+  num_epochs: 6
+  gradient_accumulation_steps: 2
+  warmup_steps: 300
+  fp16: True
+
+logging: 
+  wandb: True
+  project: "babylm-dev"
+  output_dir: "./models/"
+
