@@ -26,7 +26,7 @@ from torch.amp import autocast, GradScaler
 
 #############
 LR = 2.5e-4
-BATCH_SIZE = 32
+BATCH_SIZE = 64
 SEQ_LENGTH = 128
 
 TEMPERATURE = 2.0
@@ -35,17 +35,17 @@ ALPHA = 0.5
 
 PATH = Path("./")
 
-teacher_dir1 = PATH / './models/Llama-360M-G10'
-teacher_dir2 = PATH / './models/GPT2-705M-orig'
-generator_dir = PATH / './models/Electra-705M'
+teacher_dir1 = PATH / './models/llama-60M-all'
+teacher_dir2 = PATH / './models/GPT2-44M-all'
+generator_dir = PATH / './models/Electra-50M'
 
-MODEL_NAME = f'Baby-Llama-58M-MATE-KD'
+MODEL_NAME = f'Baby-Llama-58M-MATE-KD-small'
 MODEL_OUTPUT = Path('./models') / MODEL_NAME
 EVAL_SAMPLES = 8192
 
 wandb_log = True
 
-tokenizer_path = PATH / "models/gpt-clean-16000.json"
+tokenizer_path = PATH / "models/gpt-clean-16000-this_years.json"
 tokenizer = PreTrainedTokenizerFast(tokenizer_file=str(tokenizer_path))
 tokenizer.bos_token = "<s>"
 tokenizer.eos_token = "</s>"
