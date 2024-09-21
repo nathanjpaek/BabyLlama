@@ -288,13 +288,18 @@ trainer = DistillationTrainer(
 
 import os
 
+import os
+
 # Check if there are existing checkpoints in the output directory
 last_checkpoint = None
 if os.path.isdir(MODEL_OUTPUT) and any("checkpoint" in folder for folder in os.listdir(MODEL_OUTPUT)):
+    # Get the latest checkpoint directory path
     last_checkpoint = sorted([f for f in os.listdir(MODEL_OUTPUT) if "checkpoint" in f])[-1]
+    last_checkpoint = str(MODEL_OUTPUT / last_checkpoint)  # Append full path to checkpoint
 
 # Resume training from the last checkpoint if found
 trainer.train(resume_from_checkpoint=last_checkpoint if last_checkpoint else None)
 
 trainer.save_model(MODEL_OUTPUT)
 tokenizer.save_pretrained(MODEL_OUTPUT)
+
