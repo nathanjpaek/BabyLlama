@@ -62,7 +62,7 @@ if additional_special_tokens:
     tokenizer.add_special_tokens(additional_special_tokens)
     print(f"Added special tokens: {list(additional_special_tokens.keys())}")
 
-train_dataset = BabylmDataset(PATH / "Modified_data/babylm_10M_clean", SEQ_LENGTH, tokenizer=tokenizer, random_chunk=True)
+train_dataset = BabylmDataset(PATH / "data/babylm_10M_clean", SEQ_LENGTH, tokenizer=tokenizer, random_chunk=True)
 full_eval_dataset = BabylmDataset(PATH / "data/babylm_dev_clean", SEQ_LENGTH, tokenizer=tokenizer, offset=0)
 
 eval_indices = sample(range(len(full_eval_dataset)), EVAL_SAMPLES)
