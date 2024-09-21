@@ -1,5 +1,5 @@
 data:
-  tokenizer_path: "./models/gpt-clean-16000-this_years.json"
+  tokenizer_path: "./models/gpt-clean-16000-electra-mlm-now.json"
   train_path: "./data/babylm_10M_clean"
   eval_path: "./data/babylm_dev_clean"
   seq_length: 128
