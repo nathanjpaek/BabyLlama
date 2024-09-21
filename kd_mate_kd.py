@@ -26,7 +26,7 @@ from torch.amp import autocast, GradScaler
 
 #############
 LR = 2.5e-4
-BATCH_SIZE = 64
+BATCH_SIZE = 32
 SEQ_LENGTH = 128
 
 TEMPERATURE = 2.0
