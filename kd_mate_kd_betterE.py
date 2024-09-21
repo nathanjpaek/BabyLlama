@@ -151,11 +151,13 @@ class DistillationTrainer(Trainer):
         attention_mask = inputs['attention_mask']
         labels = inputs.get('labels')
 
-        # with autocast('cuda'):
-        # Generate perturbed inputs
+        # Perturbed inputs from generator
         generator_outputs = self.generator(input_ids=input_ids, attention_mask=attention_mask)
         prediction_scores = generator_outputs.logits
         prediction_scores = F.gumbel_softmax(prediction_scores, tau=1.0, hard=True)
+
+        # Ensure requires_grad is set for prediction_scores
+        prediction_scores.requires_grad_(True)
 
         # Create perturbed embeddings for teachers and student
         teacher_inps = []
@@ -164,16 +166,18 @@ class DistillationTrainer(Trainer):
             teacher_inps.append(teacher_inp)
 
         student_inp = torch.matmul(prediction_scores, model.get_input_embeddings().weight)
+        student_inp.requires_grad_(True)  # Ensure student input requires grad
 
         # Get teacher and student logits
         teacher_logits = []
         for teacher, teacher_inp in zip(self.teachers, teacher_inps):
-            with torch.no_grad():
+            with torch.no_grad():  # Keep this if teachers shouldn't train
                 teacher_output = teacher(attention_mask=attention_mask, inputs_embeds=teacher_inp)
                 teacher_logits.append(teacher_output.logits)
 
         avg_teacher_logits = torch.stack(teacher_logits).mean(dim=0)
         student_logits = model(attention_mask=attention_mask, inputs_embeds=student_inp).logits
+        student_logits.requires_grad_(True)  # Ensure student logits requires grad
 
         if self.idx_pseudo % self.n_repeat_batch < self.n_generator_iter:
             # Generator training phase
@@ -183,36 +187,33 @@ class DistillationTrainer(Trainer):
                 reduction='batchmean'
             ) * (self.args.temperature ** 2)
 
+            # Ensure gradients for generator optimization
             self.generator_optimizer.zero_grad()
             loss.backward()
             self.generator_optimizer.step()
             self.generator_scheduler.step()
 
-            # FOR MIXED PRECISION:
-            """self.generator_optimizer.zero_grad()  # Zero out gradients before backward pass
-            scaled_loss = self.scaler.scale(loss)  # Scale the loss for mixed precision
-            scaled_loss.backward()  # Perform the backward pass with scaled loss
-            self.scaler.step(self.generator_optimizer)  # Step optimizer
-            self.scaler.update()  # Update the scale factor
-            self.generator_scheduler.step()"""
-
         else:
             # Student training phase
             original_student_logits = model(attention_mask=attention_mask, input_ids=input_ids).logits
+            original_student_logits.requires_grad_(True)  # Ensure gradients for the original logits
+
+            # Get original teacher logits
             original_teacher_logits = []
             for teacher in self.teachers:
-                with torch.no_grad():
+                with torch.no_grad():  # Keep this if teachers don't need gradients
                     teacher_output = teacher(attention_mask=attention_mask, input_ids=input_ids)
                     original_teacher_logits.append(teacher_output.logits)
+
             avg_original_teacher_logits = torch.stack(original_teacher_logits).mean(dim=0)
 
+            # Loss computations
             loss_teach = F.kl_div(
                 F.log_softmax(original_student_logits / self.args.temperature, dim=-1),
                 F.softmax(avg_original_teacher_logits / self.args.temperature, dim=-1),
                 reduction='batchmean'
             ) * (self.args.temperature ** 2)
 
-            # loss_good = F.cross_entropy(original_student_logits, labels)
             loss_good = F.cross_entropy(original_student_logits.view(-1, original_student_logits.size(-1)), labels.view(-1))
 
             loss_adv = F.kl_div(
@@ -228,19 +229,12 @@ class DistillationTrainer(Trainer):
             self.optimizer.step()
             self.lr_scheduler.step()
 
-            # FOR MIXED PRECISION:
-            """self.optimizer.zero_grad()  # Zero out gradients before backward pass
-            scaled_loss = self.scaler.scale(loss)  # Scale the loss for mixed precision
-            scaled_loss.backward()  # Perform the backward pass with scaled loss
-            self.scaler.step(self.optimizer)  # Step optimizer
-            self.scaler.update()  # Update the scale factor
-            self.lr_scheduler.step()"""
-
         self.idx_pseudo += 1
         if self.idx_pseudo >= self.n_repeat_batch:
             self.idx_pseudo = 0
 
         return (loss, None) if return_outputs else loss
+
 
     def training_step(self, model: nn.Module, inputs: Dict[str, Union[torch.Tensor, Any]]) -> torch.Tensor:
         model.train()
