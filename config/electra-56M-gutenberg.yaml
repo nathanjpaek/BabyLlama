@@ -7,14 +7,14 @@ data:
 
 model:
   type: "Electra"
-  name: "Electra-705M-all"
-  hidden_size: 1536
-  intermediate_size: 6144  # Typically 4 * hidden_size for Electra
-  n_layer: 24
-  n_head: 16
-  resid_pdrop: 0.1  # Dropout rates for residual connections, should be adjusted for Electra
-  embd_pdrop: 0.1  # Embedding dropout
-  attn_pdrop: 0.1  # Attention dropout
+  name: "Electra-50M"
+  hidden_size: 768  # Increased from 640
+  intermediate_size: 3072  # 4 * hidden_size for Electra
+  n_layer: 6  # Keeping it at 6 layers
+  n_head: 8  # Keeping attention heads at 8
+  resid_pdrop: 0.1
+  embd_pdrop: 0.1
+  attn_pdrop: 0.1
 
 training:
   lr: 2.5e-4
