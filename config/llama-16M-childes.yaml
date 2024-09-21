@@ -1,0 +1,29 @@
+data:
+  tokenizer_path: "./models/gpt-clean-16000-childes.json"
+  train_path: "./data/childes_10M"
+  eval_path: "./data/babylm_dev_clean"
+  seq_length: 128
+  eval_samples: 8192
+
+model:
+  type: "Llama"
+  name: "Llama-20M-childes"
+  hidden_size: 384  # Reduced from 768
+  intermediate_size: 1024  # Adjusted based on 2/3 * 4 * hidden_size
+  n_layer: 2        # Reduced from 10
+  n_head: 4         # Reduced from 12
+  tie_word_embeddings: False
+
+training:
+  lr: 3e-4
+  batch_size: 128
+  num_epochs: 4
+  gradient_accumulation_steps: 1
+  warmup_steps: 300
+  fp16: True
+
+logging: 
+  wandb: True
+  project: "babylm-dev"
+  output_dir: "./models/"
+
