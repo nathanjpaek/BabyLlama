@@ -20,7 +20,7 @@ from torch.utils.data import Subset
 from random import sample
 from pathlib import Path
 import wandb
-from babylm_dataset import BabylmDataset
+from babylm_dataset_mate_kd import BabylmDataset
 from torch.amp import autocast, GradScaler
 
 
