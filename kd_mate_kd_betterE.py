@@ -39,7 +39,7 @@ teacher_dir1 = PATH / './models/llama-60M-all'
 teacher_dir2 = PATH / './models/GPT2-44M-all'
 generator_dir = PATH / './models/Electra-705M'
 
-MODEL_NAME = f'Baby-Llama-58M-MATE-KD-small'
+MODEL_NAME = f'Baby-Mate-all'
 MODEL_OUTPUT = Path('./models') / MODEL_NAME
 EVAL_SAMPLES = 8192
 
