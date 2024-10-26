@@ -45,7 +45,7 @@ wandb_log = True
 
 
 
-tokenizer_path = PATH / "models/gpt-clean-16000-this_years.json"
+tokenizer_path = PATH / "models/gpt-clean-16000.json"
 tokenizer = GPT2TokenizerFast(tokenizer_file= str(tokenizer_path))
 tokenizer.bos_token = "<s>"
 tokenizer.eos_token = "</s>"
