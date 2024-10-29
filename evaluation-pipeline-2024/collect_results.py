@@ -5,7 +5,7 @@ import os
 import argparse
 
 TEXT_TASKS = {
-    "glue": ["cola", "sst2", "mrpc", "qqp", "mnli", "mnli-mm", "qnli", "rte",
+    "glue": ["cola", "sst2", "mrpc", "qqp", "mnli", "qnli", "rte",
              "boolq", "multirc", "wsc"],
     # Lots of BLiMP tasks – use verifier function below to see if you've included everything.
     "blimp": [taskname.split(".jsonl")[0] for taskname in os.listdir("evaluation_data/blimp_filtered/")],
