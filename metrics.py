@@ -1,18 +1,19 @@
 import nltk
-import spacy
-from collections import Counter
+import neuralcoref
+import en_core_web_sm
+from collections import Counter, defaultdict
 from nltk.tokenize import word_tokenize, sent_tokenize
 from nltk.parse import CoreNLPParser
 from nltk.corpus import stopwords
-from collections import defaultdict
 
-# Ensure nltk data is downloaded
+# Download required NLTK data
 nltk.download('punkt')
 nltk.download('averaged_perceptron_tagger')
 nltk.download('stopwords')
 
-# Load Spacy model with coreference resolution and POS tagging capabilities
-nlp = spacy.load("en_core_web_sm")
+# Load a SpaCy model and add neuralcoref to it
+nlp = en_core_web_sm.load()
+neuralcoref.add_to_pipe(nlp)
 
 def calculate_type_token_ratio(text):
     words = word_tokenize(text)
@@ -36,8 +37,9 @@ def calculate_avg_sentence_depth(text):
 def calculate_coreference_resolution(text):
     doc = nlp(text)
     coref_counts = defaultdict(int)
-    for cluster in doc._.coref_clusters:
-        coref_counts[cluster.main.text] += len(cluster.mentions)
+    if doc._.has_coref:
+        for cluster in doc._.coref_clusters:
+            coref_counts[cluster.main.text] += len(cluster.mentions)
     return coref_counts
 
 def calculate_pos_distribution(text):
