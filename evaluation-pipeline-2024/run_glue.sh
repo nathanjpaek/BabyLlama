@@ -11,7 +11,8 @@ if [ -z "$MODELPATH" ]; then
 fi
 
 # List of GLUE tasks to evaluate. Modify the list as needed.
-TASKS=("boolq" "cola" "mnli" "mrpc" "multirc" "qnli" "qqp" "rte" "sst2" "wsc")
+# TASKS=("boolq" "cola" "mnli" "mrpc" "multirc" "qnli" "qqp" "rte" "sst2" "wsc")
+TASKS = ("cola")
 
 # Directory to store all evaluation results
 BASE_OUTPUT_DIR="results/eval"
