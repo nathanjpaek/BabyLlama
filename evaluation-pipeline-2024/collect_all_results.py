@@ -66,3 +66,5 @@ for model, data in results.items():
 # Create a DataFrame and print it
 df = pd.DataFrame(final_results)
 print(df)
+# Save the DataFrame to a CSV file
+df.to_csv("model_results.csv", index=False)
