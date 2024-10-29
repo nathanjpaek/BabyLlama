@@ -3,7 +3,7 @@ import json
 import pandas as pd
 
 # Define the path to the results directory
-base_path = "results/finetune"
+base_path = "results/lora"
 
 # Initialize a dictionary to store results
 results = {}
