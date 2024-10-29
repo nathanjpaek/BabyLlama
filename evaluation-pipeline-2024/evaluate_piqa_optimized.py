@@ -4,10 +4,8 @@
 import argparse
 import os
 import numpy as np
-from copy import deepcopy
 
 import torch
-from torch.utils.data import DataLoader
 
 import evaluate
 from datasets import load_dataset
@@ -18,24 +16,6 @@ from transformers import (
     TrainingArguments
 )
 from transformers.trainer_utils import set_seed
-from tqdm import tqdm
-
-
-def get_piqa_features(example, tokenizer, max_length=128):
-    """
-    Tokenizes PIQA examples for multiple-choice evaluation.
-    """
-    # Each example has 'goal', 'sol1', 'sol2'
-    choices = [example['sol1'], example['sol2']]
-    encoding = tokenizer(
-        [example['goal']] * len(choices),
-        choices,
-        padding='max_length',
-        truncation=True,
-        max_length=max_length,
-        return_tensors='pt'
-    )
-    return encoding
 
 
 def preprocess_piqa(dataset, tokenizer, max_length=128, num_proc=8):
@@ -43,8 +23,10 @@ def preprocess_piqa(dataset, tokenizer, max_length=128, num_proc=8):
     Preprocesses the PIQA dataset for multiple-choice evaluation.
     """
     def preprocess_function(examples):
-        input_encodings = []
-        labels = []
+        input_ids = []
+        attention_masks = []
+        labels = examples['label']
+
         for goal, sol1, sol2 in zip(examples['goal'], examples['sol1'], examples['sol2']):
             choices = [sol1, sol2]
             encoding = tokenizer(
@@ -54,11 +36,13 @@ def preprocess_piqa(dataset, tokenizer, max_length=128, num_proc=8):
                 truncation=True,
                 max_length=max_length
             )
-            input_encodings.append(encoding)
+            input_ids.append(encoding['input_ids'])
+            attention_masks.append(encoding['attention_mask'])
+
         return {
-            'input_ids': [enc['input_ids'] for enc in input_encodings],
-            'attention_mask': [enc['attention_mask'] for enc in input_encodings],
-            'labels': examples['label']
+            'input_ids': input_ids,
+            'attention_mask': attention_masks,
+            'labels': labels
         }
 
     tokenized_dataset = dataset.map(

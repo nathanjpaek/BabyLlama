@@ -32,8 +32,6 @@ DEVICE="cuda"  # Change to "cpu" if GPU is not available
 # Define output directory based on model name
 MODEL_NAME=$(basename "$MODELPATH")
 OUTPUT_DIR="$BASE_OUTPUT_DIR/$MODEL_NAME"
-
-# Create output directory
 mkdir -p "$OUTPUT_DIR"
 
 echo "-------------------------------------------"
@@ -53,7 +51,6 @@ python "$PYTHON_SCRIPT" \
     --do_predict \
     --output_dir "$OUTPUT_DIR" \
     --num_proc "$NUM_PROC" \
-    --padding_side right \
     --device "$DEVICE"
 
 echo "-------------------------------------------"
