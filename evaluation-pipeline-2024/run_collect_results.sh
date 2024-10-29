@@ -18,7 +18,7 @@ models=(
 )
 
 # Directory where collect_results.py is located
-SCRIPT_DIR="collect_results.py"  # Replace with the actual path if needed
+SCRIPT_DIR="./"  # Replace with the actual path if needed
 
 # Navigate to the script directory
 cd "$SCRIPT_DIR" || { echo "Script directory not found!"; exit 1; }
